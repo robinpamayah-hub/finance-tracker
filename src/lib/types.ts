@@ -118,7 +118,7 @@ export interface StockQuote {
 }
 
 // Insurance Types
-export type InsuranceSource = "employer" | "external";
+export type InsuranceSource = "personal" | "corporate" | "employer";
 export type InsuranceType =
   | "health"
   | "dental"

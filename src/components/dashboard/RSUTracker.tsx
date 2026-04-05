@@ -87,45 +87,85 @@ export function RSUTracker({ data }: RSUTrackerProps) {
     setLoading((prev) => ({ ...prev, [key]: true }));
     setFetchError(null);
 
-    try {
-      // Try Yahoo Finance v8 chart endpoint
-      const res = await fetch(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${key}?interval=1d&range=5d`
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const meta = json.chart?.result?.[0]?.meta;
-      if (!meta) throw new Error("Invalid response");
-
-      const price = meta.regularMarketPrice;
-      const prevClose = meta.chartPreviousClose || meta.previousClose || price;
-      const change = price - prevClose;
-      const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
-      const quote: StockQuote = {
-        price,
-        change,
-        changePercent,
-        lastUpdated: new Date().toISOString(),
-      };
-      setQuotes((prev) => ({ ...prev, [key]: quote }));
-      // Save to cache
-      const updatedCache = loadCachedQuotes();
-      updatedCache[key] = { ...quote, cachedAt: Date.now() };
-      localStorage.setItem(QUOTE_CACHE_KEY, JSON.stringify(updatedCache));
-    } catch {
-      // If fetch fails, check if we have any cached data (even expired)
-      const cache = loadCachedQuotes();
-      if (cache[key]) {
-        setQuotes((prev) => ({ ...prev, [key]: cache[key] }));
-        setFetchError(`Using cached price for ${key}. Live fetch failed (may be a CORS issue).`);
-      } else {
-        setFetchError(
-          `Could not fetch ${key} price. Enter it manually below or try refreshing.`
+    // Try multiple APIs in order of reliability
+    const apis = [
+      // 1. Finnhub free API (CORS-friendly, no key needed for basic quotes)
+      async (): Promise<StockQuote> => {
+        const res = await fetch(
+          `https://finnhub.io/api/v1/quote?symbol=${key}&token=demo`
         );
+        if (!res.ok) throw new Error(`Finnhub HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.c || data.c === 0) throw new Error("No data from Finnhub");
+        return {
+          price: data.c, // current price
+          change: data.d || 0, // change
+          changePercent: data.dp || 0, // change percent
+          lastUpdated: new Date().toISOString(),
+        };
+      },
+      // 2. Yahoo Finance v8 chart endpoint
+      async (): Promise<StockQuote> => {
+        const res = await fetch(
+          `https://query1.finance.yahoo.com/v8/finance/chart/${key}?interval=1d&range=5d`
+        );
+        if (!res.ok) throw new Error(`Yahoo HTTP ${res.status}`);
+        const json = await res.json();
+        const meta = json.chart?.result?.[0]?.meta;
+        if (!meta) throw new Error("Invalid Yahoo response");
+        const price = meta.regularMarketPrice;
+        const prevClose = meta.chartPreviousClose || meta.previousClose || price;
+        const change = price - prevClose;
+        const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
+        return { price, change, changePercent, lastUpdated: new Date().toISOString() };
+      },
+      // 3. Yahoo Finance v6 quote endpoint
+      async (): Promise<StockQuote> => {
+        const res = await fetch(
+          `https://query2.finance.yahoo.com/v6/finance/quote?symbols=${key}`
+        );
+        if (!res.ok) throw new Error(`Yahoo v6 HTTP ${res.status}`);
+        const json = await res.json();
+        const result = json.quoteResponse?.result?.[0];
+        if (!result) throw new Error("No Yahoo v6 data");
+        return {
+          price: result.regularMarketPrice,
+          change: result.regularMarketChange || 0,
+          changePercent: result.regularMarketChangePercent || 0,
+          lastUpdated: new Date().toISOString(),
+        };
+      },
+    ];
+
+    let lastError = "";
+    for (const apiFn of apis) {
+      try {
+        const quote = await apiFn();
+        if (quote.price > 0) {
+          setQuotes((prev) => ({ ...prev, [key]: quote }));
+          const updatedCache = loadCachedQuotes();
+          updatedCache[key] = { ...quote, cachedAt: Date.now() };
+          localStorage.setItem(QUOTE_CACHE_KEY, JSON.stringify(updatedCache));
+          setLoading((prev) => ({ ...prev, [key]: false }));
+          return;
+        }
+      } catch (e) {
+        lastError = e instanceof Error ? e.message : "Unknown error";
+        continue;
       }
-    } finally {
-      setLoading((prev) => ({ ...prev, [key]: false }));
     }
+
+    // All APIs failed — check for expired cache
+    const expiredCache = loadCachedQuotes();
+    if (expiredCache[key]) {
+      setQuotes((prev) => ({ ...prev, [key]: expiredCache[key] }));
+      setFetchError(`Using cached price for ${key} (last fetched ${format(new Date(expiredCache[key].lastUpdated), "MMM d, h:mm a")}). Live fetch failed.`);
+    } else {
+      setFetchError(
+        `Could not fetch ${key} price (${lastError}). Click "Set Price Manually" and check NASDAQ for the current price.`
+      );
+    }
+    setLoading((prev) => ({ ...prev, [key]: false }));
   }, []);
 
   // Manual price entry

@@ -66,10 +66,16 @@ const TYPE_COLORS: Record<InsuranceType, string> = {
   other: "bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300",
 };
 
+const SOURCE_LABELS: Record<InsuranceSource, string> = {
+  personal: "Personal",
+  corporate: "Robin's Corp",
+  employer: "Dynatrace Life Coverage",
+};
+
 const emptyForm = {
   name: "",
   type: "health" as InsuranceType,
-  source: "employer" as InsuranceSource,
+  source: "personal" as InsuranceSource,
   provider: "",
   policyNumber: "",
   premium: "",
@@ -86,8 +92,9 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
   const [form, setForm] = useState(emptyForm);
   const [deleteDialog, setDeleteDialog] = useState<{ id: string; name: string } | null>(null);
 
+  const personalPolicies = data.insurancePolicies.filter((p) => p.source === "personal");
+  const corporatePolicies = data.insurancePolicies.filter((p) => p.source === "corporate");
   const employerPolicies = data.insurancePolicies.filter((p) => p.source === "employer");
-  const externalPolicies = data.insurancePolicies.filter((p) => p.source === "external");
 
   const totalMonthlyPremium = data.insurancePolicies.reduce(
     (sum, p) => sum + normalizeToMonthly(p.premium, p.premiumFrequency),
@@ -226,7 +233,7 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
             <p className="text-xs text-muted-foreground">Total Policies</p>
             <p className="text-2xl font-bold text-blue-500">{data.insurancePolicies.length}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {employerPolicies.length} employer, {externalPolicies.length} external
+              {personalPolicies.length} personal, {corporatePolicies.length} corp, {employerPolicies.length} employer
             </p>
           </CardContent>
         </Card>
@@ -259,11 +266,14 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
         </Button>
       </div>
 
-      {/* Employer Coverage */}
-      {renderPolicyTable(employerPolicies, "Employer Coverage")}
+      {/* Personal Coverage */}
+      {renderPolicyTable(personalPolicies, "Personal Coverage")}
 
-      {/* External Coverage */}
-      {renderPolicyTable(externalPolicies, "External Coverage")}
+      {/* Robin's Corp Coverage */}
+      {renderPolicyTable(corporatePolicies, "Robin's Corp")}
+
+      {/* Dynatrace Life Coverage */}
+      {renderPolicyTable(employerPolicies, "Dynatrace Life Coverage")}
 
       {/* Add/Edit Policy Dialog */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
@@ -307,8 +317,9 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
                 <Select value={form.source} onValueChange={(v) => setForm((f) => ({ ...f, source: v as InsuranceSource }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="employer">Employer</SelectItem>
-                    <SelectItem value="external">External</SelectItem>
+                    {Object.entries(SOURCE_LABELS).map(([val, label]) => (
+                      <SelectItem key={val} value={val}>{label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
