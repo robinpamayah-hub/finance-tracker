@@ -28,6 +28,10 @@ import type { FinanceData } from "@/lib/storage";
 import { formatCurrency } from "@/lib/utils";
 import { format, isPast, isFuture, differenceInDays } from "date-fns";
 
+function formatCAD(usd: number, rate: number): string {
+  return `C$${(usd * rate).toLocaleString("en-CA", { maximumFractionDigits: 0 })}`;
+}
+
 interface RSUTrackerProps {
   data: FinanceData;
 }
@@ -202,16 +206,21 @@ export function RSUTracker({ data }: RSUTrackerProps) {
     setFetchError(null);
   };
 
-  // Fetch quotes for all tickers on mount and set up auto-refresh every 5 minutes
+  const cadRate = data.exchangeRate.rate;
+
+  // Fetch quotes and exchange rate on mount, auto-refresh every 5 minutes
   useEffect(() => {
     const tickers = [...new Set(data.rsuGrants.map((g) => g.ticker.toUpperCase()))];
     tickers.forEach((t) => fetchQuote(t));
+    data.fetchExchangeRate();
 
     const interval = setInterval(() => {
       tickers.forEach((t) => fetchQuote(t));
+      data.fetchExchangeRate();
     }, 5 * 60 * 1000);
 
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.rsuGrants, fetchQuote]);
 
   const handleAddGrant = () => {
@@ -411,7 +420,7 @@ export function RSUTracker({ data }: RSUTrackerProps) {
 
                 {/* Value breakdown */}
                 {quote && quote.price > 0 && (
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-4 border-t border-white/10">
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mt-6 pt-4 border-t border-white/10">
                     <div>
                       <p className="text-xs text-muted-foreground uppercase tracking-wide">
                         Total Shares
@@ -420,7 +429,10 @@ export function RSUTracker({ data }: RSUTrackerProps) {
                         {tickerTotal.toLocaleString()}
                       </p>
                       <p className="text-sm font-semibold text-blue-500">
-                        {formatCurrency(tickerTotal * quote.price)}
+                        {formatCurrency(tickerTotal * quote.price)} USD
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatCAD(tickerTotal * quote.price, cadRate)} CAD
                       </p>
                     </div>
                     <div>
@@ -431,7 +443,10 @@ export function RSUTracker({ data }: RSUTrackerProps) {
                         {tickerVested.toLocaleString()}
                       </p>
                       <p className="text-sm font-semibold text-emerald-500">
-                        {formatCurrency(tickerVested * quote.price)}
+                        {formatCurrency(tickerVested * quote.price)} USD
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatCAD(tickerVested * quote.price, cadRate)} CAD
                       </p>
                     </div>
                     <div>
@@ -442,18 +457,34 @@ export function RSUTracker({ data }: RSUTrackerProps) {
                         {tickerUnvested.toLocaleString()}
                       </p>
                       <p className="text-sm font-semibold text-violet-500">
-                        {formatCurrency(tickerUnvested * quote.price)}
+                        {formatCurrency(tickerUnvested * quote.price)} USD
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatCAD(tickerUnvested * quote.price, cadRate)} CAD
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                        Per Share
+                        Per Share (USD)
                       </p>
                       <p className="text-xl font-bold">
                         ${quote.price.toFixed(2)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         live market price
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                        USD/CAD Rate
+                      </p>
+                      <p className="text-xl font-bold">
+                        {cadRate.toFixed(4)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {data.exchangeRate.lastUpdated
+                          ? `Updated ${format(new Date(data.exchangeRate.lastUpdated), "h:mm a")}`
+                          : "Default rate"}
                       </p>
                     </div>
                   </div>
@@ -488,33 +519,42 @@ export function RSUTracker({ data }: RSUTrackerProps) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-500/10 to-emerald-600/5">
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Vested Value</p>
+            <p className="text-xs text-muted-foreground">Vested Value (USD)</p>
             <p className="text-2xl font-bold text-emerald-500">
               {formatCurrency(totalVestedValue)}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-emerald-400">
+              {formatCAD(totalVestedValue, cadRate)} CAD
+            </p>
+            <p className="text-[10px] text-muted-foreground">
               {totalVestedShares.toLocaleString()} shares
             </p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm bg-gradient-to-br from-violet-500/10 to-violet-600/5">
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Unvested Value</p>
+            <p className="text-xs text-muted-foreground">Unvested Value (USD)</p>
             <p className="text-2xl font-bold text-violet-500">
               {formatCurrency(totalUnvestedValue)}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-violet-400">
+              {formatCAD(totalUnvestedValue, cadRate)} CAD
+            </p>
+            <p className="text-[10px] text-muted-foreground">
               {totalUnvestedShares.toLocaleString()} shares
             </p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-500/10 to-blue-600/5">
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Total Portfolio</p>
+            <p className="text-xs text-muted-foreground">Total Portfolio (USD)</p>
             <p className="text-2xl font-bold text-blue-500">
               {formatCurrency(totalVestedValue + totalUnvestedValue)}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-blue-400">
+              {formatCAD(totalVestedValue + totalUnvestedValue, cadRate)} CAD
+            </p>
+            <p className="text-[10px] text-muted-foreground">
               {totalAllShares.toLocaleString()} total shares
             </p>
           </CardContent>
@@ -764,7 +804,8 @@ export function RSUTracker({ data }: RSUTrackerProps) {
                               <TableRow>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Shares</TableHead>
-                                <TableHead>Value Today</TableHead>
+                                <TableHead>Value (USD)</TableHead>
+                                <TableHead>Value (CAD)</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead className="w-[100px]">
                                   Actions
@@ -804,6 +845,15 @@ export function RSUTracker({ data }: RSUTrackerProps) {
                                             }
                                           >
                                             {formatCurrency(eventValue)}
+                                          </span>
+                                        ) : (
+                                          "---"
+                                        )}
+                                      </TableCell>
+                                      <TableCell className="text-sm">
+                                        {eventValue !== null ? (
+                                          <span className="text-muted-foreground">
+                                            {formatCAD(eventValue, cadRate)}
                                           </span>
                                         ) : (
                                           "---"

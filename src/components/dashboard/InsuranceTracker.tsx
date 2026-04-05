@@ -16,6 +16,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -28,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { InsurancePolicy, InsuranceType, InsuranceSource } from "@/lib/types";
+import type { InsurancePolicy, InsuranceType } from "@/lib/types";
 import type { FinanceData } from "@/lib/storage";
 import { normalizeToMonthly } from "@/lib/calculations";
 import { formatCurrency, formatCurrencyExact } from "@/lib/utils";
@@ -69,7 +70,7 @@ const TYPE_COLORS: Record<InsuranceType, string> = {
 const emptyForm = {
   name: "",
   type: "health" as InsuranceType,
-  source: "employer" as InsuranceSource,
+  category: "",
   provider: "",
   policyNumber: "",
   premium: "",
@@ -86,8 +87,18 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
   const [form, setForm] = useState(emptyForm);
   const [deleteDialog, setDeleteDialog] = useState<{ id: string; name: string } | null>(null);
 
-  const employerPolicies = data.insurancePolicies.filter((p) => p.source === "employer");
-  const externalPolicies = data.insurancePolicies.filter((p) => p.source === "external");
+  // Category management
+  const [categoryFormOpen, setCategoryFormOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [renameCatDialog, setRenameCatDialog] = useState<{ old: string } | null>(null);
+  const [renameCatValue, setRenameCatValue] = useState("");
+  const [deleteCatDialog, setDeleteCatDialog] = useState<string | null>(null);
+
+  // Move policy dialog
+  const [moveDialog, setMoveDialog] = useState<{ policy: InsurancePolicy } | null>(null);
+  const [moveTarget, setMoveTarget] = useState("");
+
+  const categories = data.insuranceCategories;
 
   const totalMonthlyPremium = data.insurancePolicies.reduce(
     (sum, p) => sum + normalizeToMonthly(p.premium, p.premiumFrequency),
@@ -96,11 +107,11 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
   const totalAnnualPremium = totalMonthlyPremium * 12;
 
   const handleSubmit = () => {
-    if (!form.name || !form.provider) return;
+    if (!form.name || !form.provider || !form.category) return;
     const policyData = {
       name: form.name,
       type: form.type,
-      source: form.source,
+      category: form.category,
       provider: form.provider,
       policyNumber: form.policyNumber,
       premium: parseFloat(form.premium) || 0,
@@ -125,7 +136,7 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
     setForm({
       name: policy.name,
       type: policy.type,
-      source: policy.source,
+      category: policy.category,
       provider: policy.provider,
       policyNumber: policy.policyNumber,
       premium: policy.premium.toString(),
@@ -138,16 +149,47 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
     setFormOpen(true);
   };
 
+  const handleAddCategory = () => {
+    if (!newCategoryName.trim()) return;
+    data.addInsuranceCategory(newCategoryName.trim());
+    setNewCategoryName("");
+    setCategoryFormOpen(false);
+  };
+
   const renderPolicyTable = (policies: InsurancePolicy[], title: string) => (
     <Card className="border-0 shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">{title}</CardTitle>
-        <Badge variant="secondary">{policies.length} {policies.length === 1 ? "policy" : "policies"}</Badge>
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-base">{title}</CardTitle>
+          <Badge variant="secondary">
+            {policies.length} {policies.length === 1 ? "policy" : "policies"}
+          </Badge>
+        </div>
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setRenameCatDialog({ old: title });
+              setRenameCatValue(title);
+            }}
+          >
+            Rename
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive"
+            onClick={() => setDeleteCatDialog(title)}
+          >
+            Remove
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {policies.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
-            No {title.toLowerCase()} added yet.
+            No policies in this category yet.
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -161,7 +203,7 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
                   <TableHead>Deductible</TableHead>
                   <TableHead>Coverage</TableHead>
                   <TableHead>Renewal</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
+                  <TableHead className="w-[140px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -171,12 +213,17 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
                       <div>
                         <p>{policy.name}</p>
                         {policy.policyNumber && (
-                          <p className="text-[10px] text-muted-foreground">#{policy.policyNumber}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            #{policy.policyNumber}
+                          </p>
                         )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className={TYPE_COLORS[policy.type]}>
+                      <Badge
+                        variant="secondary"
+                        className={TYPE_COLORS[policy.type]}
+                      >
                         {TYPE_LABELS[policy.type]}
                       </Badge>
                     </TableCell>
@@ -184,24 +231,51 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
                     <TableCell className="text-sm">
                       <div>
                         <p>{formatCurrencyExact(policy.premium)}</p>
-                        <p className="text-[10px] text-muted-foreground">/{policy.premiumFrequency}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          /{policy.premiumFrequency}
+                        </p>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">{formatCurrency(policy.deductible)}</TableCell>
-                    <TableCell className="text-sm">{formatCurrency(policy.coverageAmount)}</TableCell>
                     <TableCell className="text-sm">
-                      {policy.renewalDate ? format(new Date(policy.renewalDate), "MMM yyyy") : "---"}
+                      {formatCurrency(policy.deductible)}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {formatCurrency(policy.coverageAmount)}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {policy.renewalDate
+                        ? format(new Date(policy.renewalDate), "MMM yyyy")
+                        : "---"}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(policy)}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setMoveDialog({ policy });
+                            setMoveTarget("");
+                          }}
+                        >
+                          Move
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEdit(policy)}
+                        >
                           Edit
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           className="text-destructive"
-                          onClick={() => setDeleteDialog({ id: policy.id, name: policy.name })}
+                          onClick={() =>
+                            setDeleteDialog({
+                              id: policy.id,
+                              name: policy.name,
+                            })
+                          }
                         >
                           Del
                         </Button>
@@ -224,34 +298,56 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
         <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-500/10 to-blue-600/5">
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Total Policies</p>
-            <p className="text-2xl font-bold text-blue-500">{data.insurancePolicies.length}</p>
+            <p className="text-2xl font-bold text-blue-500">
+              {data.insurancePolicies.length}
+            </p>
             <p className="text-xs text-muted-foreground mt-1">
-              {employerPolicies.length} employer, {externalPolicies.length} external
+              across {categories.length} categories
             </p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm bg-gradient-to-br from-rose-500/10 to-rose-600/5">
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Monthly Premium</p>
-            <p className="text-2xl font-bold text-rose-500">{formatCurrency(totalMonthlyPremium)}</p>
-            <p className="text-xs text-muted-foreground mt-1">across all policies</p>
+            <p className="text-2xl font-bold text-rose-500">
+              {formatCurrency(totalMonthlyPremium)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              across all policies
+            </p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-500/10 to-amber-600/5">
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Annual Cost</p>
-            <p className="text-2xl font-bold text-amber-500">{formatCurrency(totalAnnualPremium)}</p>
-            <p className="text-xs text-muted-foreground mt-1">estimated yearly total</p>
+            <p className="text-2xl font-bold text-amber-500">
+              {formatCurrency(totalAnnualPremium)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              estimated yearly total
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Add button */}
-      <div className="flex justify-end">
+      {/* Action buttons */}
+      <div className="flex justify-between">
+        <Button
+          variant="outline"
+          onClick={() => {
+            setNewCategoryName("");
+            setCategoryFormOpen(true);
+          }}
+        >
+          + Add Category
+        </Button>
         <Button
           onClick={() => {
             setEditPolicy(undefined);
-            setForm(emptyForm);
+            setForm({
+              ...emptyForm,
+              category: categories[0] || "",
+            });
             setFormOpen(true);
           }}
         >
@@ -259,17 +355,219 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
         </Button>
       </div>
 
-      {/* Employer Coverage */}
-      {renderPolicyTable(employerPolicies, "Employer Coverage")}
+      {/* Category sections */}
+      {categories.map((cat) => {
+        const policies = data.insurancePolicies.filter(
+          (p) => p.category === cat
+        );
+        return (
+          <div key={cat}>{renderPolicyTable(policies, cat)}</div>
+        );
+      })}
 
-      {/* External Coverage */}
-      {renderPolicyTable(externalPolicies, "External Coverage")}
+      {/* Uncategorized (for any policies with categories that don't match) */}
+      {(() => {
+        const uncategorized = data.insurancePolicies.filter(
+          (p) => !categories.includes(p.category)
+        );
+        if (uncategorized.length === 0) return null;
+        return renderPolicyTable(uncategorized, "Uncategorized");
+      })()}
+
+      {data.insurancePolicies.length === 0 && categories.length === 0 && (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="py-12 text-center">
+            <p className="text-sm text-muted-foreground">
+              No insurance policies yet. Add a category, then add your first
+              policy.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Add Category Dialog */}
+      <Dialog open={categoryFormOpen} onOpenChange={setCategoryFormOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Insurance Category</DialogTitle>
+            <DialogDescription>
+              Create a new category to organize your policies (e.g.,
+              &quot;Personal&quot;, &quot;Corporate&quot;, &quot;Dynatrace
+              Benefits&quot;).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Category Name</Label>
+              <Input
+                placeholder="e.g., Personal Coverage"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddCategory()}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCategoryFormOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleAddCategory}>Add Category</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Category Dialog */}
+      <Dialog
+        open={!!renameCatDialog}
+        onOpenChange={(open) => !open && setRenameCatDialog(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Category</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>New Name</Label>
+              <Input
+                value={renameCatValue}
+                onChange={(e) => setRenameCatValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && renameCatDialog) {
+                    data.renameInsuranceCategory(
+                      renameCatDialog.old,
+                      renameCatValue.trim()
+                    );
+                    setRenameCatDialog(null);
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRenameCatDialog(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (renameCatDialog && renameCatValue.trim()) {
+                  data.renameInsuranceCategory(
+                    renameCatDialog.old,
+                    renameCatValue.trim()
+                  );
+                  setRenameCatDialog(null);
+                }
+              }}
+            >
+              Rename
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Category Dialog */}
+      <Dialog
+        open={!!deleteCatDialog}
+        onOpenChange={(open) => !open && setDeleteCatDialog(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Category</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Remove &quot;{deleteCatDialog}&quot;? Any policies in this category
+            will be moved to &quot;{categories[0] || "Uncategorized"}&quot;.
+          </p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteCatDialog(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deleteCatDialog) {
+                  data.deleteInsuranceCategory(deleteCatDialog);
+                  setDeleteCatDialog(null);
+                }
+              }}
+            >
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move Policy Dialog */}
+      <Dialog
+        open={!!moveDialog}
+        onOpenChange={(open) => !open && setMoveDialog(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move Policy</DialogTitle>
+            <DialogDescription>
+              Move &quot;{moveDialog?.policy.name}&quot; to a different
+              category.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Move to</Label>
+              <Select value={moveTarget} onValueChange={(v) => setMoveTarget(v ?? "")}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories
+                    .filter((c) => c !== moveDialog?.policy.category)
+                    .map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setMoveDialog(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (moveDialog && moveTarget) {
+                  data.moveInsurancePolicy(moveDialog.policy.id, moveTarget);
+                  setMoveDialog(null);
+                }
+              }}
+              disabled={!moveTarget}
+            >
+              Move
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add/Edit Policy Dialog */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editPolicy ? "Edit Policy" : "Add Insurance Policy"}</DialogTitle>
+            <DialogTitle>
+              {editPolicy ? "Edit Policy" : "Add Insurance Policy"}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
@@ -278,7 +576,9 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
                 <Input
                   placeholder="e.g., Medical PPO"
                   value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, name: e.target.value }))
+                  }
                 />
               </div>
               <div className="space-y-2">
@@ -286,29 +586,50 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
                 <Input
                   placeholder="e.g., Aetna"
                   value={form.provider}
-                  onChange={(e) => setForm((f) => ({ ...f, provider: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, provider: e.target.value }))
+                  }
                 />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Type</Label>
-                <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v as InsuranceType }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={form.type}
+                  onValueChange={(v) =>
+                    v && setForm((f) => ({ ...f, type: v as InsuranceType }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {Object.entries(TYPE_LABELS).map(([val, label]) => (
-                      <SelectItem key={val} value={val}>{label}</SelectItem>
+                      <SelectItem key={val} value={val}>
+                        {label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Source</Label>
-                <Select value={form.source} onValueChange={(v) => setForm((f) => ({ ...f, source: v as InsuranceSource }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label>Category</Label>
+                <Select
+                  value={form.category}
+                  onValueChange={(v) =>
+                    v && setForm((f) => ({ ...f, category: v }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="employer">Employer</SelectItem>
-                    <SelectItem value="external">External</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -318,7 +639,9 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
               <Input
                 placeholder="e.g., POL-123456"
                 value={form.policyNumber}
-                onChange={(e) => setForm((f) => ({ ...f, policyNumber: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, policyNumber: e.target.value }))
+                }
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -329,13 +652,26 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
                   step="0.01"
                   placeholder="0.00"
                   value={form.premium}
-                  onChange={(e) => setForm((f) => ({ ...f, premium: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, premium: e.target.value }))
+                  }
                 />
               </div>
               <div className="space-y-2">
                 <Label>Premium Frequency</Label>
-                <Select value={form.premiumFrequency} onValueChange={(v) => setForm((f) => ({ ...f, premiumFrequency: v as InsurancePolicy["premiumFrequency"] }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={form.premiumFrequency}
+                  onValueChange={(v) =>
+                    v && setForm((f) => ({
+                      ...f,
+                      premiumFrequency:
+                        v as InsurancePolicy["premiumFrequency"],
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="weekly">Weekly</SelectItem>
                     <SelectItem value="biweekly">Biweekly</SelectItem>
@@ -354,7 +690,9 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
                   step="0.01"
                   placeholder="0.00"
                   value={form.deductible}
-                  onChange={(e) => setForm((f) => ({ ...f, deductible: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, deductible: e.target.value }))
+                  }
                 />
               </div>
               <div className="space-y-2">
@@ -364,7 +702,9 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
                   step="0.01"
                   placeholder="0.00"
                   value={form.coverageAmount}
-                  onChange={(e) => setForm((f) => ({ ...f, coverageAmount: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, coverageAmount: e.target.value }))
+                  }
                 />
               </div>
             </div>
@@ -373,7 +713,9 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
               <Input
                 type="date"
                 value={form.renewalDate}
-                onChange={(e) => setForm((f) => ({ ...f, renewalDate: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, renewalDate: e.target.value }))
+                }
               />
             </div>
             <div className="space-y-2">
@@ -381,19 +723,28 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
               <Input
                 placeholder="Any additional details..."
                 value={form.notes}
-                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, notes: e.target.value }))
+                }
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFormOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit}>{editPolicy ? "Update" : "Add"} Policy</Button>
+            <Button variant="outline" onClick={() => setFormOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit}>
+              {editPolicy ? "Update" : "Add"} Policy
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
-      <Dialog open={!!deleteDialog} onOpenChange={(open) => !open && setDeleteDialog(null)}>
+      {/* Delete Policy Confirmation */}
+      <Dialog
+        open={!!deleteDialog}
+        onOpenChange={(open) => !open && setDeleteDialog(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Delete</DialogTitle>
@@ -402,7 +753,12 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
             Are you sure you want to delete &quot;{deleteDialog?.name}&quot;?
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialog(null)}>Cancel</Button>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialog(null)}
+            >
+              Cancel
+            </Button>
             <Button
               variant="destructive"
               onClick={() => {

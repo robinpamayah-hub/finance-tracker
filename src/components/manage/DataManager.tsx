@@ -4,6 +4,15 @@ import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -26,10 +35,24 @@ import { CreditCardForm } from "@/components/forms/CreditCardForm";
 import { AffirmPlanForm } from "@/components/forms/AffirmPlanForm";
 import { BillForm } from "@/components/forms/BillForm";
 import type { FinanceData } from "@/lib/storage";
-import type { IncomeSource, CreditCard, AffirmPlan, Bill } from "@/lib/types";
+import type { IncomeSource, CreditCard, AffirmPlan, Bill, InsurancePolicy, InsuranceType } from "@/lib/types";
 import { normalizeToMonthly } from "@/lib/calculations";
 import { formatCurrencyExact } from "@/lib/utils";
 import type { IncomeFormValues, CreditCardFormValues, AffirmPlanFormValues, BillFormValues } from "@/lib/schemas";
+
+const INSURANCE_TYPE_LABELS: Record<InsuranceType, string> = {
+  health: "Health",
+  dental: "Dental",
+  vision: "Vision",
+  life: "Life",
+  disability: "Disability",
+  auto: "Auto",
+  home: "Home",
+  renters: "Renters",
+  umbrella: "Umbrella",
+  pet: "Pet",
+  other: "Other",
+};
 
 interface DataManagerProps {
   data: FinanceData;
@@ -47,6 +70,32 @@ export function DataManager({ data }: DataManagerProps) {
   const [editCC, setEditCC] = useState<CreditCard | undefined>();
   const [editAffirm, setEditAffirm] = useState<AffirmPlan | undefined>();
   const [editBill, setEditBill] = useState<Bill | undefined>();
+
+  // Insurance states
+  const [insuranceFormOpen, setInsuranceFormOpen] = useState(false);
+  const [editInsurance, setEditInsurance] = useState<InsurancePolicy | undefined>();
+  const [addCategoryOpen, setAddCategoryOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [renameCategoryDialog, setRenameCategoryDialog] = useState<{ oldName: string } | null>(null);
+  const [renameCategoryValue, setRenameCategoryValue] = useState("");
+  const [deleteCategoryDialog, setDeleteCategoryDialog] = useState<string | null>(null);
+  const [movePolicyDialog, setMovePolicyDialog] = useState<{ policyId: string; currentCategory: string } | null>(null);
+  const [movePolicyTarget, setMovePolicyTarget] = useState("");
+
+  // Insurance form state
+  const [insuranceForm, setInsuranceForm] = useState({
+    name: "",
+    type: "life" as InsuranceType,
+    category: "",
+    provider: "",
+    policyNumber: "",
+    premium: 0,
+    premiumFrequency: "monthly" as InsurancePolicy["premiumFrequency"],
+    deductible: 0,
+    coverageAmount: 0,
+    renewalDate: "",
+    notes: "",
+  });
 
   // Delete confirmation
   const [deleteDialog, setDeleteDialog] = useState<{ type: string; id: string; name: string } | null>(null);
@@ -106,8 +155,89 @@ export function DataManager({ data }: DataManagerProps) {
       case "bill":
         data.deleteBill(deleteDialog.id);
         break;
+      case "insurance":
+        data.deleteInsurancePolicy(deleteDialog.id);
+        break;
     }
     setDeleteDialog(null);
+  };
+
+  const resetInsuranceForm = () => {
+    setInsuranceForm({
+      name: "",
+      type: "life",
+      category: data.insuranceCategories[0] || "",
+      provider: "",
+      policyNumber: "",
+      premium: 0,
+      premiumFrequency: "monthly",
+      deductible: 0,
+      coverageAmount: 0,
+      renewalDate: "",
+      notes: "",
+    });
+  };
+
+  const openInsuranceForm = (policy?: InsurancePolicy) => {
+    if (policy) {
+      setEditInsurance(policy);
+      setInsuranceForm({
+        name: policy.name,
+        type: policy.type,
+        category: policy.category,
+        provider: policy.provider,
+        policyNumber: policy.policyNumber,
+        premium: policy.premium,
+        premiumFrequency: policy.premiumFrequency,
+        deductible: policy.deductible,
+        coverageAmount: policy.coverageAmount,
+        renewalDate: policy.renewalDate,
+        notes: policy.notes,
+      });
+    } else {
+      setEditInsurance(undefined);
+      resetInsuranceForm();
+    }
+    setInsuranceFormOpen(true);
+  };
+
+  const handleInsuranceSubmit = () => {
+    if (!insuranceForm.name || !insuranceForm.provider || !insuranceForm.category) return;
+    if (editInsurance) {
+      data.updateInsurancePolicy(editInsurance.id, insuranceForm);
+      setEditInsurance(undefined);
+    } else {
+      data.addInsurancePolicy(insuranceForm);
+    }
+    setInsuranceFormOpen(false);
+    resetInsuranceForm();
+  };
+
+  const handleAddCategory = () => {
+    if (!newCategoryName.trim()) return;
+    data.addInsuranceCategory(newCategoryName.trim());
+    setNewCategoryName("");
+    setAddCategoryOpen(false);
+  };
+
+  const handleRenameCategory = () => {
+    if (!renameCategoryDialog || !renameCategoryValue.trim()) return;
+    data.renameInsuranceCategory(renameCategoryDialog.oldName, renameCategoryValue.trim());
+    setRenameCategoryDialog(null);
+    setRenameCategoryValue("");
+  };
+
+  const handleDeleteCategory = () => {
+    if (!deleteCategoryDialog) return;
+    data.deleteInsuranceCategory(deleteCategoryDialog);
+    setDeleteCategoryDialog(null);
+  };
+
+  const handleMovePolicy = () => {
+    if (!movePolicyDialog || !movePolicyTarget) return;
+    data.moveInsurancePolicy(movePolicyDialog.policyId, movePolicyTarget);
+    setMovePolicyDialog(null);
+    setMovePolicyTarget("");
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -446,6 +576,195 @@ export function DataManager({ data }: DataManagerProps) {
         </CardContent>
       </Card>
 
+      {/* Insurance Policies */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Insurance Policies</CardTitle>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setAddCategoryOpen(true)}>
+              + Category
+            </Button>
+            <Button size="sm" onClick={() => openInsuranceForm()}>
+              + Add Policy
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Category management */}
+          {data.insuranceCategories.length > 0 && (
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs font-medium text-muted-foreground">Categories:</span>
+              {data.insuranceCategories.map((cat) => (
+                <div key={cat} className="flex items-center gap-1">
+                  <Badge variant="secondary">{cat}</Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1 text-xs"
+                    onClick={() => {
+                      setRenameCategoryDialog({ oldName: cat });
+                      setRenameCategoryValue(cat);
+                    }}
+                  >
+                    Rename
+                  </Button>
+                  {data.insuranceCategories.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 px-1 text-xs text-destructive"
+                      onClick={() => setDeleteCategoryDialog(cat)}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {data.insurancePolicies.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              No insurance policies added yet.
+            </p>
+          ) : (
+            <>
+              {/* Group policies by category */}
+              {data.insuranceCategories.map((category) => {
+                const policies = data.insurancePolicies.filter((p) => p.category === category);
+                if (policies.length === 0) return null;
+                return (
+                  <div key={category}>
+                    <h4 className="text-sm font-semibold mb-2">{category} ({policies.length})</h4>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Provider</TableHead>
+                          <TableHead>Premium</TableHead>
+                          <TableHead>Coverage</TableHead>
+                          <TableHead className="w-[150px]">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {policies.map((policy) => (
+                          <TableRow key={policy.id}>
+                            <TableCell className="font-medium">{policy.name}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{INSURANCE_TYPE_LABELS[policy.type]}</Badge>
+                            </TableCell>
+                            <TableCell>{policy.provider}</TableCell>
+                            <TableCell>
+                              {formatCurrencyExact(policy.premium)}/{policy.premiumFrequency === "annual" ? "yr" : policy.premiumFrequency === "monthly" ? "mo" : policy.premiumFrequency}
+                            </TableCell>
+                            <TableCell>{policy.coverageAmount > 0 ? formatCurrencyExact(policy.coverageAmount) : "—"}</TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                <Button variant="ghost" size="sm" onClick={() => openInsuranceForm(policy)}>
+                                  Edit
+                                </Button>
+                                {data.insuranceCategories.length > 1 && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setMovePolicyDialog({ policyId: policy.id, currentCategory: policy.category });
+                                      setMovePolicyTarget(data.insuranceCategories.find((c) => c !== policy.category) || "");
+                                    }}
+                                  >
+                                    Move
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive"
+                                  onClick={() => setDeleteDialog({ type: "insurance", id: policy.id, name: policy.name })}
+                                >
+                                  Del
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                );
+              })}
+
+              {/* Uncategorized policies */}
+              {(() => {
+                const uncategorized = data.insurancePolicies.filter(
+                  (p) => !data.insuranceCategories.includes(p.category)
+                );
+                if (uncategorized.length === 0) return null;
+                return (
+                  <div>
+                    <h4 className="text-sm font-semibold mb-2">Uncategorized ({uncategorized.length})</h4>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Provider</TableHead>
+                          <TableHead>Premium</TableHead>
+                          <TableHead>Coverage</TableHead>
+                          <TableHead className="w-[150px]">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {uncategorized.map((policy) => (
+                          <TableRow key={policy.id}>
+                            <TableCell className="font-medium">{policy.name}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{INSURANCE_TYPE_LABELS[policy.type]}</Badge>
+                            </TableCell>
+                            <TableCell>{policy.provider}</TableCell>
+                            <TableCell>
+                              {formatCurrencyExact(policy.premium)}/{policy.premiumFrequency === "annual" ? "yr" : policy.premiumFrequency === "monthly" ? "mo" : policy.premiumFrequency}
+                            </TableCell>
+                            <TableCell>{policy.coverageAmount > 0 ? formatCurrencyExact(policy.coverageAmount) : "—"}</TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                <Button variant="ghost" size="sm" onClick={() => openInsuranceForm(policy)}>
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setMovePolicyDialog({ policyId: policy.id, currentCategory: policy.category });
+                                    setMovePolicyTarget(data.insuranceCategories[0] || "");
+                                  }}
+                                >
+                                  Move
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive"
+                                  onClick={() => setDeleteDialog({ type: "insurance", id: policy.id, name: policy.name })}
+                                >
+                                  Del
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                );
+              })()}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Separator />
+
       {/* Forms */}
       <IncomeForm
         open={incomeFormOpen}
@@ -512,6 +831,186 @@ export function DataManager({ data }: DataManagerProps) {
             >
               {deleteDialog?.type === "all" ? "Clear All" : "Delete"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Insurance Policy Form Dialog */}
+      <Dialog open={insuranceFormOpen} onOpenChange={(open) => {
+        setInsuranceFormOpen(open);
+        if (!open) { setEditInsurance(undefined); resetInsuranceForm(); }
+      }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editInsurance ? "Edit" : "Add"} Insurance Policy</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="ins-name">Policy Name</Label>
+              <Input id="ins-name" value={insuranceForm.name} onChange={(e) => setInsuranceForm((f) => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Type</Label>
+                <Select value={insuranceForm.type} onValueChange={(v) => v && setInsuranceForm((f) => ({ ...f, type: v as InsuranceType }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(INSURANCE_TYPE_LABELS).map(([val, label]) => (
+                      <SelectItem key={val} value={val}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Category</Label>
+                <Select value={insuranceForm.category} onValueChange={(v) => v && setInsuranceForm((f) => ({ ...f, category: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                  <SelectContent>
+                    {data.insuranceCategories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="ins-provider">Provider</Label>
+              <Input id="ins-provider" value={insuranceForm.provider} onChange={(e) => setInsuranceForm((f) => ({ ...f, provider: e.target.value }))} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="ins-policy-number">Policy Number</Label>
+              <Input id="ins-policy-number" value={insuranceForm.policyNumber} onChange={(e) => setInsuranceForm((f) => ({ ...f, policyNumber: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="ins-premium">Premium</Label>
+                <Input id="ins-premium" type="number" value={insuranceForm.premium} onChange={(e) => setInsuranceForm((f) => ({ ...f, premium: parseFloat(e.target.value) || 0 }))} />
+              </div>
+              <div className="grid gap-2">
+                <Label>Frequency</Label>
+                <Select value={insuranceForm.premiumFrequency} onValueChange={(v) => v && setInsuranceForm((f) => ({ ...f, premiumFrequency: v as InsurancePolicy["premiumFrequency"] }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="biweekly">Biweekly</SelectItem>
+                    <SelectItem value="semimonthly">Semi-monthly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="annual">Annual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="ins-deductible">Deductible</Label>
+                <Input id="ins-deductible" type="number" value={insuranceForm.deductible} onChange={(e) => setInsuranceForm((f) => ({ ...f, deductible: parseFloat(e.target.value) || 0 }))} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="ins-coverage">Coverage Amount</Label>
+                <Input id="ins-coverage" type="number" value={insuranceForm.coverageAmount} onChange={(e) => setInsuranceForm((f) => ({ ...f, coverageAmount: parseFloat(e.target.value) || 0 }))} />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="ins-renewal">Renewal Date</Label>
+              <Input id="ins-renewal" type="date" value={insuranceForm.renewalDate} onChange={(e) => setInsuranceForm((f) => ({ ...f, renewalDate: e.target.value }))} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="ins-notes">Notes</Label>
+              <Input id="ins-notes" value={insuranceForm.notes} onChange={(e) => setInsuranceForm((f) => ({ ...f, notes: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInsuranceFormOpen(false)}>Cancel</Button>
+            <Button onClick={handleInsuranceSubmit}>{editInsurance ? "Update" : "Add"} Policy</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Category Dialog */}
+      <Dialog open={addCategoryOpen} onOpenChange={setAddCategoryOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Insurance Category</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Label htmlFor="new-cat">Category Name</Label>
+            <Input
+              id="new-cat"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAddCategory()}
+              placeholder="e.g., Dynatrace Life Coverage"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddCategoryOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddCategory}>Add Category</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Category Dialog */}
+      <Dialog open={!!renameCategoryDialog} onOpenChange={(open) => !open && setRenameCategoryDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Category</DialogTitle>
+            <DialogDescription>Rename &ldquo;{renameCategoryDialog?.oldName}&rdquo; to a new name. All policies in this category will be updated.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Label htmlFor="rename-cat">New Name</Label>
+            <Input
+              id="rename-cat"
+              value={renameCategoryValue}
+              onChange={(e) => setRenameCategoryValue(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleRenameCategory()}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameCategoryDialog(null)}>Cancel</Button>
+            <Button onClick={handleRenameCategory}>Rename</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Category Dialog */}
+      <Dialog open={!!deleteCategoryDialog} onOpenChange={(open) => !open && setDeleteCategoryDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Category</DialogTitle>
+            <DialogDescription>
+              Remove &ldquo;{deleteCategoryDialog}&rdquo;? Policies in this category will be moved to &ldquo;{data.insuranceCategories.find((c) => c !== deleteCategoryDialog) || "Uncategorized"}&rdquo;.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteCategoryDialog(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteCategory}>Remove</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move Policy Dialog */}
+      <Dialog open={!!movePolicyDialog} onOpenChange={(open) => !open && setMovePolicyDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move Policy</DialogTitle>
+            <DialogDescription>Move this policy to a different category.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Label>Move to</Label>
+            <Select value={movePolicyTarget} onValueChange={(v) => setMovePolicyTarget(v ?? "")}>
+              <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+              <SelectContent>
+                {data.insuranceCategories
+                  .filter((c) => c !== movePolicyDialog?.currentCategory)
+                  .map((cat) => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMovePolicyDialog(null)}>Cancel</Button>
+            <Button onClick={handleMovePolicy}>Move</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

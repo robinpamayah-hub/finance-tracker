@@ -117,8 +117,18 @@ export interface StockQuote {
   lastUpdated: string;
 }
 
+// Currency
+export interface ExchangeRate {
+  rate: number; // USD to CAD
+  lastUpdated: string;
+}
+
 // Insurance Types
-export type InsuranceSource = "employer" | "external";
+export const DEFAULT_INSURANCE_CATEGORIES = [
+  "Employer Coverage",
+  "External Coverage",
+];
+
 export type InsuranceType =
   | "health"
   | "dental"
@@ -136,7 +146,7 @@ export interface InsurancePolicy {
   id: string;
   name: string;
   type: InsuranceType;
-  source: InsuranceSource;
+  category: string; // user-defined category (e.g., "Employer Coverage", "External Coverage", etc.)
   provider: string;
   policyNumber: string;
   premium: number;

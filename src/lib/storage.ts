@@ -15,7 +15,9 @@ import type {
   InsurancePolicy,
   EducationAccount,
   Contribution,
+  ExchangeRate,
 } from "./types";
+import { DEFAULT_INSURANCE_CATEGORIES } from "./types";
 import { calcFinancialSummary, getBillCalendarEntries, calc503020 } from "./calculations";
 import {
   sampleIncome,
@@ -33,6 +35,8 @@ const KEYS = {
   insurancePolicies: "finance-tracker-insurance-policies",
   educationAccounts: "finance-tracker-education-accounts",
   contributions: "finance-tracker-contributions",
+  insuranceCategories: "finance-tracker-insurance-categories",
+  exchangeRate: "finance-tracker-exchange-rate",
   initialized: "finance-tracker-initialized",
   lastSaved: "finance-tracker-last-saved",
 } as const;
@@ -61,6 +65,8 @@ export function useFinanceData() {
   const [insurancePolicies, setInsurancePolicies] = useState<InsurancePolicy[]>([]);
   const [educationAccounts, setEducationAccounts] = useState<EducationAccount[]>([]);
   const [contributions, setContributions] = useState<Contribution[]>([]);
+  const [insuranceCategories, setInsuranceCategories] = useState<string[]>(DEFAULT_INSURANCE_CATEGORIES);
+  const [exchangeRate, setExchangeRate] = useState<ExchangeRate>({ rate: 1.36, lastUpdated: "" });
   const [isLoaded, setIsLoaded] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
 
@@ -90,6 +96,8 @@ export function useFinanceData() {
     setInsurancePolicies(load<InsurancePolicy[]>(KEYS.insurancePolicies, []));
     setEducationAccounts(load<EducationAccount[]>(KEYS.educationAccounts, []));
     setContributions(load<Contribution[]>(KEYS.contributions, []));
+    setInsuranceCategories(load<string[]>(KEYS.insuranceCategories, DEFAULT_INSURANCE_CATEGORIES));
+    setExchangeRate(load<ExchangeRate>(KEYS.exchangeRate, { rate: 1.36, lastUpdated: "" }));
     setLastSaved(localStorage.getItem(KEYS.lastSaved));
     setIsLoaded(true);
   }, []);
@@ -149,6 +157,16 @@ export function useFinanceData() {
     save(KEYS.contributions, contributions);
     updateLastSaved();
   }, [contributions, isLoaded, updateLastSaved]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    save(KEYS.insuranceCategories, insuranceCategories);
+  }, [insuranceCategories, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    save(KEYS.exchangeRate, exchangeRate);
+  }, [exchangeRate, isLoaded]);
 
   // Computed values
   const summary: FinancialSummary = useMemo(
@@ -279,6 +297,50 @@ export function useFinanceData() {
     setInsurancePolicies((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
+  const moveInsurancePolicy = useCallback((id: string, newCategory: string) => {
+    setInsurancePolicies((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, category: newCategory } : p))
+    );
+  }, []);
+
+  // Insurance Categories CRUD
+  const addInsuranceCategory = useCallback((name: string) => {
+    setInsuranceCategories((prev) => prev.includes(name) ? prev : [...prev, name]);
+  }, []);
+
+  const deleteInsuranceCategory = useCallback((name: string) => {
+    setInsuranceCategories((prev) => prev.filter((c) => c !== name));
+    // Move orphaned policies to first available category
+    setInsurancePolicies((prev) =>
+      prev.map((p) => p.category === name ? { ...p, category: insuranceCategories[0] || "Uncategorized" } : p)
+    );
+  }, [insuranceCategories]);
+
+  const renameInsuranceCategory = useCallback((oldName: string, newName: string) => {
+    setInsuranceCategories((prev) => prev.map((c) => (c === oldName ? newName : c)));
+    setInsurancePolicies((prev) =>
+      prev.map((p) => (p.category === oldName ? { ...p, category: newName } : p))
+    );
+  }, []);
+
+  // Exchange Rate
+  const updateExchangeRate = useCallback((rate: number) => {
+    setExchangeRate({ rate, lastUpdated: new Date().toISOString() });
+  }, []);
+
+  const fetchExchangeRate = useCallback(async () => {
+    try {
+      const res = await fetch("https://api.exchangerate-api.com/v4/latest/USD");
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      if (data.rates?.CAD) {
+        setExchangeRate({ rate: data.rates.CAD, lastUpdated: new Date().toISOString() });
+      }
+    } catch {
+      // Keep existing rate
+    }
+  }, []);
+
   // Education Account CRUD
   const addEducationAccount = useCallback((data: Omit<EducationAccount, "id">) => {
     setEducationAccounts((prev) => [...prev, { ...data, id: uuidv4() }]);
@@ -392,8 +454,10 @@ export function useFinanceData() {
     bills,
     rsuGrants,
     insurancePolicies,
+    insuranceCategories,
     educationAccounts,
     contributions,
+    exchangeRate,
     isLoaded,
     lastSaved,
 
@@ -434,6 +498,14 @@ export function useFinanceData() {
     addInsurancePolicy,
     updateInsurancePolicy,
     deleteInsurancePolicy,
+    moveInsurancePolicy,
+    addInsuranceCategory,
+    deleteInsuranceCategory,
+    renameInsuranceCategory,
+
+    // Exchange Rate
+    updateExchangeRate,
+    fetchExchangeRate,
 
     // Education CRUD
     addEducationAccount,
