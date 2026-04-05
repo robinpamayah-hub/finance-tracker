@@ -416,6 +416,9 @@ export function useFinanceData() {
       if (data.insurancePolicies) setInsurancePolicies(data.insurancePolicies);
       if (data.educationAccounts) setEducationAccounts(data.educationAccounts);
       if (data.contributions) setContributions(data.contributions);
+      if (data.insuranceCategories) setInsuranceCategories(data.insuranceCategories);
+      // Clear stale stock quote cache so new tickers fetch fresh data
+      localStorage.removeItem("finance-tracker-stock-quotes");
       localStorage.setItem(KEYS.initialized, "true");
       return true;
     } catch {
