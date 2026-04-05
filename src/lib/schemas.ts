@@ -56,7 +56,7 @@ export const vestingEventSchema = z.object({
 export const insurancePolicySchema = z.object({
   name: z.string().min(1, "Name is required"),
   type: z.enum(["health", "dental", "vision", "life", "disability", "auto", "home", "renters", "umbrella", "pet", "other"]),
-  source: z.enum(["personal", "corporate", "employer"]),
+  source: z.enum(["employer", "external"]),
   provider: z.string().min(1, "Provider is required"),
   policyNumber: z.string(),
   premium: z.coerce.number().min(0, "Premium cannot be negative"),

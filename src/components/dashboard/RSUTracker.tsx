@@ -87,24 +87,47 @@ export function RSUTracker({ data }: RSUTrackerProps) {
     setLoading((prev) => ({ ...prev, [key]: true }));
     setFetchError(null);
 
-    // Try multiple APIs in order of reliability
+    // Try multiple approaches to fetch stock price
     const apis = [
-      // 1. Finnhub free API (CORS-friendly, no key needed for basic quotes)
+      // 1. Yahoo Finance via corsproxy.io (bypasses CORS)
       async (): Promise<StockQuote> => {
-        const res = await fetch(
-          `https://finnhub.io/api/v1/quote?symbol=${key}&token=demo`
+        const url = encodeURIComponent(
+          `https://query1.finance.yahoo.com/v8/finance/chart/${key}?interval=1d&range=5d`
         );
-        if (!res.ok) throw new Error(`Finnhub HTTP ${res.status}`);
-        const data = await res.json();
-        if (!data.c || data.c === 0) throw new Error("No data from Finnhub");
+        const res = await fetch(`https://corsproxy.io/?url=${url}`);
+        if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
+        const json = await res.json();
+        const meta = json.chart?.result?.[0]?.meta;
+        if (!meta || !meta.regularMarketPrice) throw new Error("No data");
+        const price = meta.regularMarketPrice;
+        const prevClose = meta.chartPreviousClose || meta.previousClose || price;
         return {
-          price: data.c, // current price
-          change: data.d || 0, // change
-          changePercent: data.dp || 0, // change percent
+          price,
+          change: price - prevClose,
+          changePercent: prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0,
           lastUpdated: new Date().toISOString(),
         };
       },
-      // 2. Yahoo Finance v8 chart endpoint
+      // 2. Yahoo Finance via allorigins proxy
+      async (): Promise<StockQuote> => {
+        const url = encodeURIComponent(
+          `https://query1.finance.yahoo.com/v8/finance/chart/${key}?interval=1d&range=5d`
+        );
+        const res = await fetch(`https://api.allorigins.win/raw?url=${url}`);
+        if (!res.ok) throw new Error(`AllOrigins HTTP ${res.status}`);
+        const json = await res.json();
+        const meta = json.chart?.result?.[0]?.meta;
+        if (!meta || !meta.regularMarketPrice) throw new Error("No data");
+        const price = meta.regularMarketPrice;
+        const prevClose = meta.chartPreviousClose || meta.previousClose || price;
+        return {
+          price,
+          change: price - prevClose,
+          changePercent: prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0,
+          lastUpdated: new Date().toISOString(),
+        };
+      },
+      // 3. Direct Yahoo Finance (works in some environments)
       async (): Promise<StockQuote> => {
         const res = await fetch(
           `https://query1.finance.yahoo.com/v8/finance/chart/${key}?interval=1d&range=5d`
@@ -112,26 +135,13 @@ export function RSUTracker({ data }: RSUTrackerProps) {
         if (!res.ok) throw new Error(`Yahoo HTTP ${res.status}`);
         const json = await res.json();
         const meta = json.chart?.result?.[0]?.meta;
-        if (!meta) throw new Error("Invalid Yahoo response");
+        if (!meta || !meta.regularMarketPrice) throw new Error("No data");
         const price = meta.regularMarketPrice;
         const prevClose = meta.chartPreviousClose || meta.previousClose || price;
-        const change = price - prevClose;
-        const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
-        return { price, change, changePercent, lastUpdated: new Date().toISOString() };
-      },
-      // 3. Yahoo Finance v6 quote endpoint
-      async (): Promise<StockQuote> => {
-        const res = await fetch(
-          `https://query2.finance.yahoo.com/v6/finance/quote?symbols=${key}`
-        );
-        if (!res.ok) throw new Error(`Yahoo v6 HTTP ${res.status}`);
-        const json = await res.json();
-        const result = json.quoteResponse?.result?.[0];
-        if (!result) throw new Error("No Yahoo v6 data");
         return {
-          price: result.regularMarketPrice,
-          change: result.regularMarketChange || 0,
-          changePercent: result.regularMarketChangePercent || 0,
+          price,
+          change: price - prevClose,
+          changePercent: prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0,
           lastUpdated: new Date().toISOString(),
         };
       },
@@ -162,7 +172,7 @@ export function RSUTracker({ data }: RSUTrackerProps) {
       setFetchError(`Using cached price for ${key} (last fetched ${format(new Date(expiredCache[key].lastUpdated), "MMM d, h:mm a")}). Live fetch failed.`);
     } else {
       setFetchError(
-        `Could not fetch ${key} price (${lastError}). Click "Set Price Manually" and check NASDAQ for the current price.`
+        `Could not fetch ${key} price. Click "Set Price Manually" and check NASDAQ for the current price.`
       );
     }
     setLoading((prev) => ({ ...prev, [key]: false }));
