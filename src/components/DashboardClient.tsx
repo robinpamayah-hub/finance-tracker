@@ -24,7 +24,7 @@ import { MasonSoccer } from "@/components/dashboard/MasonSoccer";
 export function DashboardClient() {
   const auth = useAuth();
   const data = useFinanceData();
-  const [isMasked, setIsMasked] = useState(false);
+  const [isMasked, setIsMasked] = useState(true);
 
   const handleToggleMask = useCallback(() => {
     setIsMasked(true);
