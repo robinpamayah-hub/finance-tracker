@@ -16,6 +16,7 @@ import { FinancialAlerts } from "@/components/dashboard/FinancialAlerts";
 import { RSUTracker } from "@/components/dashboard/RSUTracker";
 import { InsuranceTracker } from "@/components/dashboard/InsuranceTracker";
 import { EducationSavings } from "@/components/dashboard/EducationSavings";
+import { IncomeHistory } from "@/components/dashboard/IncomeHistory";
 
 export function DashboardClient() {
   const auth = useAuth();
@@ -54,8 +55,9 @@ export function DashboardClient() {
       <main className="container mx-auto px-4 py-6">
         <Tabs defaultValue="dashboard" className="space-y-6">
           <div className="flex items-center justify-between">
-            <TabsList className="grid w-full max-w-2xl grid-cols-5">
+            <TabsList className="grid w-full max-w-3xl grid-cols-6">
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+              <TabsTrigger value="income-history">Income</TabsTrigger>
               <TabsTrigger value="rsu">RSU</TabsTrigger>
               <TabsTrigger value="insurance">Insurance</TabsTrigger>
               <TabsTrigger value="education">Education</TabsTrigger>
@@ -86,6 +88,10 @@ export function DashboardClient() {
               onUpdateCreditCard={data.updateCreditCard}
               onUpdateAffirmPlan={data.updateAffirmPlan}
             />
+          </TabsContent>
+
+          <TabsContent value="income-history">
+            <IncomeHistory data={data} />
           </TabsContent>
 
           <TabsContent value="rsu">

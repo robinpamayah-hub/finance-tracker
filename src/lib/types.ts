@@ -179,3 +179,17 @@ export interface Contribution {
   amount: number;
   note: string;
 }
+
+// Income History Types
+export interface IncomeHistoryPerson {
+  id: string;
+  name: string;
+  color: string; // hex color for charts
+}
+
+export interface IncomeHistoryEntry {
+  id: string;
+  personId: string;
+  year: number;
+  amount: number;
+}

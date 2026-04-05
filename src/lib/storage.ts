@@ -16,6 +16,8 @@ import type {
   EducationAccount,
   Contribution,
   ExchangeRate,
+  IncomeHistoryPerson,
+  IncomeHistoryEntry,
 } from "./types";
 import { DEFAULT_INSURANCE_CATEGORIES } from "./types";
 import { calcFinancialSummary, getBillCalendarEntries, calc503020 } from "./calculations";
@@ -37,6 +39,8 @@ const KEYS = {
   contributions: "finance-tracker-contributions",
   insuranceCategories: "finance-tracker-insurance-categories",
   exchangeRate: "finance-tracker-exchange-rate",
+  incomeHistoryPersons: "finance-tracker-income-history-persons",
+  incomeHistoryEntries: "finance-tracker-income-history-entries",
   initialized: "finance-tracker-initialized",
   lastSaved: "finance-tracker-last-saved",
 } as const;
@@ -67,6 +71,8 @@ export function useFinanceData() {
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [insuranceCategories, setInsuranceCategories] = useState<string[]>(DEFAULT_INSURANCE_CATEGORIES);
   const [exchangeRate, setExchangeRate] = useState<ExchangeRate>({ rate: 1.36, lastUpdated: "" });
+  const [incomeHistoryPersons, setIncomeHistoryPersons] = useState<IncomeHistoryPerson[]>([]);
+  const [incomeHistoryEntries, setIncomeHistoryEntries] = useState<IncomeHistoryEntry[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
 
@@ -98,6 +104,8 @@ export function useFinanceData() {
     setContributions(load<Contribution[]>(KEYS.contributions, []));
     setInsuranceCategories(load<string[]>(KEYS.insuranceCategories, DEFAULT_INSURANCE_CATEGORIES));
     setExchangeRate(load<ExchangeRate>(KEYS.exchangeRate, { rate: 1.36, lastUpdated: "" }));
+    setIncomeHistoryPersons(load<IncomeHistoryPerson[]>(KEYS.incomeHistoryPersons, []));
+    setIncomeHistoryEntries(load<IncomeHistoryEntry[]>(KEYS.incomeHistoryEntries, []));
     setLastSaved(localStorage.getItem(KEYS.lastSaved));
     setIsLoaded(true);
   }, []);
@@ -167,6 +175,18 @@ export function useFinanceData() {
     if (!isLoaded) return;
     save(KEYS.exchangeRate, exchangeRate);
   }, [exchangeRate, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    save(KEYS.incomeHistoryPersons, incomeHistoryPersons);
+    updateLastSaved();
+  }, [incomeHistoryPersons, isLoaded, updateLastSaved]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    save(KEYS.incomeHistoryEntries, incomeHistoryEntries);
+    updateLastSaved();
+  }, [incomeHistoryEntries, isLoaded, updateLastSaved]);
 
   // Computed values
   const summary: FinancialSummary = useMemo(
@@ -363,6 +383,34 @@ export function useFinanceData() {
     setContributions((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
+  // Income History CRUD
+  const addIncomeHistoryPerson = useCallback((data: Omit<IncomeHistoryPerson, "id">) => {
+    setIncomeHistoryPersons((prev) => [...prev, { ...data, id: uuidv4() }]);
+  }, []);
+
+  const updateIncomeHistoryPerson = useCallback((id: string, data: Partial<IncomeHistoryPerson>) => {
+    setIncomeHistoryPersons((prev) => prev.map((p) => (p.id === id ? { ...p, ...data } : p)));
+  }, []);
+
+  const deleteIncomeHistoryPerson = useCallback((id: string) => {
+    setIncomeHistoryPersons((prev) => prev.filter((p) => p.id !== id));
+    setIncomeHistoryEntries((prev) => prev.filter((e) => e.personId !== id));
+  }, []);
+
+  const setIncomeHistoryEntry = useCallback((personId: string, year: number, amount: number) => {
+    setIncomeHistoryEntries((prev) => {
+      const existing = prev.find((e) => e.personId === personId && e.year === year);
+      if (existing) {
+        return prev.map((e) => (e.id === existing.id ? { ...e, amount } : e));
+      }
+      return [...prev, { id: uuidv4(), personId, year, amount }];
+    });
+  }, []);
+
+  const deleteIncomeHistoryEntry = useCallback((id: string) => {
+    setIncomeHistoryEntries((prev) => prev.filter((e) => e.id !== id));
+  }, []);
+
   // Bulk operations
   const loadSampleData = useCallback(() => {
     setIncome(sampleIncome);
@@ -380,6 +428,8 @@ export function useFinanceData() {
     setInsurancePolicies([]);
     setEducationAccounts([]);
     setContributions([]);
+    setIncomeHistoryPersons([]);
+    setIncomeHistoryEntries([]);
     localStorage.removeItem(KEYS.initialized);
   }, []);
 
@@ -392,7 +442,9 @@ export function useFinanceData() {
     insurancePolicies,
     educationAccounts,
     contributions,
-  }), [income, creditCards, affirmPlans, bills, rsuGrants, insurancePolicies, educationAccounts, contributions]);
+    incomeHistoryPersons,
+    incomeHistoryEntries,
+  }), [income, creditCards, affirmPlans, bills, rsuGrants, insurancePolicies, educationAccounts, contributions, incomeHistoryPersons, incomeHistoryEntries]);
 
   const exportData = useCallback(() => {
     const data = getAllData();
@@ -417,6 +469,8 @@ export function useFinanceData() {
       if (data.educationAccounts) setEducationAccounts(data.educationAccounts);
       if (data.contributions) setContributions(data.contributions);
       if (data.insuranceCategories) setInsuranceCategories(data.insuranceCategories);
+      if (data.incomeHistoryPersons) setIncomeHistoryPersons(data.incomeHistoryPersons);
+      if (data.incomeHistoryEntries) setIncomeHistoryEntries(data.incomeHistoryEntries);
       // Clear stale stock quote cache so new tickers fetch fresh data
       localStorage.removeItem("finance-tracker-stock-quotes");
       localStorage.setItem(KEYS.initialized, "true");
@@ -439,6 +493,8 @@ export function useFinanceData() {
         insurancePolicies,
         educationAccounts,
         contributions,
+        incomeHistoryPersons,
+        incomeHistoryEntries,
       };
       localStorage.setItem("finance-tracker-auto-backup", JSON.stringify(data));
       localStorage.setItem("finance-tracker-auto-backup-time", new Date().toISOString());
@@ -447,7 +503,7 @@ export function useFinanceData() {
     return () => {
       if (autoBackupRef.current) clearInterval(autoBackupRef.current);
     };
-  }, [isLoaded, income, creditCards, affirmPlans, bills, rsuGrants, insurancePolicies, educationAccounts, contributions]);
+  }, [isLoaded, income, creditCards, affirmPlans, bills, rsuGrants, insurancePolicies, educationAccounts, contributions, incomeHistoryPersons, incomeHistoryEntries]);
 
   return {
     // Data
@@ -516,6 +572,15 @@ export function useFinanceData() {
     deleteEducationAccount,
     addContribution,
     deleteContribution,
+
+    // Income History
+    incomeHistoryPersons,
+    incomeHistoryEntries,
+    addIncomeHistoryPerson,
+    updateIncomeHistoryPerson,
+    deleteIncomeHistoryPerson,
+    setIncomeHistoryEntry,
+    deleteIncomeHistoryEntry,
 
     // Bulk
     loadSampleData,
