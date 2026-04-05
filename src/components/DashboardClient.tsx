@@ -19,6 +19,7 @@ import { RSUTracker } from "@/components/dashboard/RSUTracker";
 import { InsuranceTracker } from "@/components/dashboard/InsuranceTracker";
 import { EducationSavings } from "@/components/dashboard/EducationSavings";
 import { IncomeHistory } from "@/components/dashboard/IncomeHistory";
+import { MasonSoccer } from "@/components/dashboard/MasonSoccer";
 
 export function DashboardClient() {
   const auth = useAuth();
@@ -76,12 +77,13 @@ export function DashboardClient() {
         <main className="container mx-auto px-4 py-6">
           <Tabs defaultValue="dashboard" className="space-y-6">
             <div className="flex items-center justify-between">
-              <TabsList className="grid w-full max-w-3xl grid-cols-6">
+              <TabsList className="grid w-full max-w-4xl grid-cols-7">
                 <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
                 <TabsTrigger value="income-history">Income</TabsTrigger>
                 <TabsTrigger value="rsu">RSU</TabsTrigger>
                 <TabsTrigger value="insurance">Insurance</TabsTrigger>
                 <TabsTrigger value="education">Education</TabsTrigger>
+                <TabsTrigger value="mason-soccer">Soccer</TabsTrigger>
                 <TabsTrigger value="manage">Manage</TabsTrigger>
               </TabsList>
               {data.lastSaved && (
@@ -125,6 +127,10 @@ export function DashboardClient() {
 
             <TabsContent value="education">
               <EducationSavings data={data} />
+            </TabsContent>
+
+            <TabsContent value="mason-soccer">
+              <MasonSoccer data={data} />
             </TabsContent>
 
             <TabsContent value="manage">

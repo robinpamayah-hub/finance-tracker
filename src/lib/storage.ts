@@ -19,6 +19,7 @@ import type {
   IncomeHistoryPerson,
   IncomeHistoryEntry,
   IncomeBreakdown,
+  SoccerExpense,
 } from "./types";
 import { DEFAULT_INSURANCE_CATEGORIES } from "./types";
 import { calcFinancialSummary, getBillCalendarEntries, calc503020 } from "./calculations";
@@ -43,6 +44,7 @@ const KEYS = {
   incomeHistoryPersons: "finance-tracker-income-history-persons",
   incomeHistoryEntries: "finance-tracker-income-history-entries",
   incomeBreakdowns: "finance-tracker-income-breakdowns",
+  soccerExpenses: "finance-tracker-soccer-expenses",
   initialized: "finance-tracker-initialized",
   lastSaved: "finance-tracker-last-saved",
 } as const;
@@ -76,6 +78,7 @@ export function useFinanceData() {
   const [incomeHistoryPersons, setIncomeHistoryPersons] = useState<IncomeHistoryPerson[]>([]);
   const [incomeHistoryEntries, setIncomeHistoryEntries] = useState<IncomeHistoryEntry[]>([]);
   const [incomeBreakdowns, setIncomeBreakdowns] = useState<IncomeBreakdown[]>([]);
+  const [soccerExpenses, setSoccerExpenses] = useState<SoccerExpense[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
 
@@ -110,6 +113,7 @@ export function useFinanceData() {
     setIncomeHistoryPersons(load<IncomeHistoryPerson[]>(KEYS.incomeHistoryPersons, []));
     setIncomeHistoryEntries(load<IncomeHistoryEntry[]>(KEYS.incomeHistoryEntries, []));
     setIncomeBreakdowns(load<IncomeBreakdown[]>(KEYS.incomeBreakdowns, []));
+    setSoccerExpenses(load<SoccerExpense[]>(KEYS.soccerExpenses, []));
     setLastSaved(localStorage.getItem(KEYS.lastSaved));
     setIsLoaded(true);
   }, []);
@@ -197,6 +201,12 @@ export function useFinanceData() {
     save(KEYS.incomeBreakdowns, incomeBreakdowns);
     updateLastSaved();
   }, [incomeBreakdowns, isLoaded, updateLastSaved]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    save(KEYS.soccerExpenses, soccerExpenses);
+    updateLastSaved();
+  }, [soccerExpenses, isLoaded, updateLastSaved]);
 
   // Computed values
   const summary: FinancialSummary = useMemo(
@@ -450,6 +460,19 @@ export function useFinanceData() {
     setIncomeBreakdowns((prev) => prev.filter((b) => !(b.personId === personId && b.year === year)));
   }, []);
 
+  // Soccer Expense CRUD
+  const addSoccerExpense = useCallback((data: Omit<SoccerExpense, "id">) => {
+    setSoccerExpenses((prev) => [...prev, { ...data, id: uuidv4() }]);
+  }, []);
+
+  const updateSoccerExpense = useCallback((id: string, data: Partial<SoccerExpense>) => {
+    setSoccerExpenses((prev) => prev.map((e) => (e.id === id ? { ...e, ...data } : e)));
+  }, []);
+
+  const deleteSoccerExpense = useCallback((id: string) => {
+    setSoccerExpenses((prev) => prev.filter((e) => e.id !== id));
+  }, []);
+
   // Bulk operations
   const loadSampleData = useCallback(() => {
     setIncome(sampleIncome);
@@ -470,6 +493,7 @@ export function useFinanceData() {
     setIncomeHistoryPersons([]);
     setIncomeHistoryEntries([]);
     setIncomeBreakdowns([]);
+    setSoccerExpenses([]);
     localStorage.removeItem(KEYS.initialized);
   }, []);
 
@@ -485,7 +509,8 @@ export function useFinanceData() {
     incomeHistoryPersons,
     incomeHistoryEntries,
     incomeBreakdowns,
-  }), [income, creditCards, affirmPlans, bills, rsuGrants, insurancePolicies, educationAccounts, contributions, incomeHistoryPersons, incomeHistoryEntries, incomeBreakdowns]);
+    soccerExpenses,
+  }), [income, creditCards, affirmPlans, bills, rsuGrants, insurancePolicies, educationAccounts, contributions, incomeHistoryPersons, incomeHistoryEntries, incomeBreakdowns, soccerExpenses]);
 
   const exportData = useCallback(() => {
     const data = getAllData();
@@ -513,6 +538,7 @@ export function useFinanceData() {
       if (data.incomeHistoryPersons) setIncomeHistoryPersons(data.incomeHistoryPersons);
       if (data.incomeHistoryEntries) setIncomeHistoryEntries(data.incomeHistoryEntries);
       if (data.incomeBreakdowns) setIncomeBreakdowns(data.incomeBreakdowns);
+      if (data.soccerExpenses) setSoccerExpenses(data.soccerExpenses);
       // Clear stale stock quote cache so new tickers fetch fresh data
       localStorage.removeItem("finance-tracker-stock-quotes");
       localStorage.setItem(KEYS.initialized, "true");
@@ -538,6 +564,7 @@ export function useFinanceData() {
         incomeHistoryPersons,
         incomeHistoryEntries,
         incomeBreakdowns,
+        soccerExpenses,
       };
       localStorage.setItem("finance-tracker-auto-backup", JSON.stringify(data));
       localStorage.setItem("finance-tracker-auto-backup-time", new Date().toISOString());
@@ -546,7 +573,7 @@ export function useFinanceData() {
     return () => {
       if (autoBackupRef.current) clearInterval(autoBackupRef.current);
     };
-  }, [isLoaded, income, creditCards, affirmPlans, bills, rsuGrants, insurancePolicies, educationAccounts, contributions, incomeHistoryPersons, incomeHistoryEntries, incomeBreakdowns]);
+  }, [isLoaded, income, creditCards, affirmPlans, bills, rsuGrants, insurancePolicies, educationAccounts, contributions, incomeHistoryPersons, incomeHistoryEntries, incomeBreakdowns, soccerExpenses]);
 
   return {
     // Data
@@ -631,6 +658,12 @@ export function useFinanceData() {
     setIncomeBreakdownItems,
     setIncomeBreakdownRsuAllocation,
     deleteIncomeBreakdown,
+
+    // Soccer Expenses
+    soccerExpenses,
+    addSoccerExpense,
+    updateSoccerExpense,
+    deleteSoccerExpense,
 
     // Bulk
     loadSampleData,

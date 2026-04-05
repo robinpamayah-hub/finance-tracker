@@ -208,3 +208,24 @@ export interface IncomeBreakdown {
   items: IncomeBreakdownItem[];
   rsuAllocationUSD: number; // RSU allocation amount in USD — syncs with RSU tab
 }
+
+// Soccer Expense Types
+export type SoccerExpenseCategory =
+  | "registration"
+  | "equipment"
+  | "travel"
+  | "tournament"
+  | "training"
+  | "uniform"
+  | "other";
+
+export interface SoccerExpense {
+  id: string;
+  description: string;
+  amount: number;
+  category: SoccerExpenseCategory;
+  date: string; // ISO date
+  season: string; // e.g. "Spring 2026", "Fall 2025"
+  paid: boolean;
+  notes: string;
+}
