@@ -14,7 +14,11 @@
       "Bash(npm install:*)",
       "Bash(npx next:*)",
       "Bash(taskkill //F //IM node.exe)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npx vercel:*)",
+      "Bash(gh auth:*)",
+      "Bash(gh repo:*)",
+      "Bash(npm run:*)"
     ]
   }
 }
