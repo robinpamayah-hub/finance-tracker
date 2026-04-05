@@ -95,32 +95,21 @@ export function RSUTracker({ data }: RSUTrackerProps) {
 
     // Try multiple approaches to fetch stock price
     const apis = [
-      // 1. Yahoo Finance via corsproxy.io (bypasses CORS)
+      // 1. Server-side API route (avoids CORS, sets User-Agent)
+      async (): Promise<StockQuote> => {
+        const res = await fetch(`/api/stock-quote/${key}`);
+        if (!res.ok) throw new Error(`API route HTTP ${res.status}`);
+        const json = await res.json();
+        if (!json.price) throw new Error("No price data");
+        return json as StockQuote;
+      },
+      // 2. Yahoo Finance via corsproxy.io (fallback)
       async (): Promise<StockQuote> => {
         const url = encodeURIComponent(
           `https://query1.finance.yahoo.com/v8/finance/chart/${key}?interval=1d&range=5d`
         );
         const res = await fetch(`https://corsproxy.io/?url=${url}`);
         if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
-        const json = await res.json();
-        const meta = json.chart?.result?.[0]?.meta;
-        if (!meta || !meta.regularMarketPrice) throw new Error("No data");
-        const price = meta.regularMarketPrice;
-        const prevClose = meta.chartPreviousClose || meta.previousClose || price;
-        return {
-          price,
-          change: price - prevClose,
-          changePercent: prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0,
-          lastUpdated: new Date().toISOString(),
-        };
-      },
-      // 2. Yahoo Finance via allorigins proxy
-      async (): Promise<StockQuote> => {
-        const url = encodeURIComponent(
-          `https://query1.finance.yahoo.com/v8/finance/chart/${key}?interval=1d&range=5d`
-        );
-        const res = await fetch(`https://api.allorigins.win/raw?url=${url}`);
-        if (!res.ok) throw new Error(`AllOrigins HTTP ${res.status}`);
         const json = await res.json();
         const meta = json.chart?.result?.[0]?.meta;
         if (!meta || !meta.regularMarketPrice) throw new Error("No data");
