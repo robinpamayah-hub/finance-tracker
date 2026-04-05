@@ -92,3 +92,80 @@ export const CATEGORY_TO_BUDGET: Record<BillCategory, BudgetCategory> = {
   subscription: "wants",
   other: "wants",
 };
+
+// RSU Types
+export interface RSUGrant {
+  id: string;
+  company: string;
+  ticker: string;
+  grantDate: string; // ISO date
+  totalShares: number;
+  vestingSchedule: VestingEvent[];
+}
+
+export interface VestingEvent {
+  id: string;
+  date: string; // ISO date
+  shares: number;
+  vested: boolean;
+}
+
+export interface StockQuote {
+  price: number;
+  change: number;
+  changePercent: number;
+  lastUpdated: string;
+}
+
+// Insurance Types
+export type InsuranceSource = "employer" | "external";
+export type InsuranceType =
+  | "health"
+  | "dental"
+  | "vision"
+  | "life"
+  | "disability"
+  | "auto"
+  | "home"
+  | "renters"
+  | "umbrella"
+  | "pet"
+  | "other";
+
+export interface InsurancePolicy {
+  id: string;
+  name: string;
+  type: InsuranceType;
+  source: InsuranceSource;
+  provider: string;
+  policyNumber: string;
+  premium: number;
+  premiumFrequency: "weekly" | "biweekly" | "semimonthly" | "monthly" | "annual";
+  deductible: number;
+  coverageAmount: number;
+  renewalDate: string; // ISO date
+  notes: string;
+}
+
+// Education Savings Types
+export type AccountType = "529" | "esa" | "utma" | "other";
+
+export interface EducationAccount {
+  id: string;
+  beneficiary: string;
+  accountType: AccountType;
+  institution: string;
+  balance: number;
+  monthlyContribution: number;
+  targetAmount: number;
+  targetDate: string; // ISO date (e.g., expected college start)
+  notes: string;
+}
+
+export interface Contribution {
+  id: string;
+  accountId: string;
+  date: string; // ISO date
+  amount: number;
+  note: string;
+}

@@ -13,6 +13,9 @@ import { BillCalendar } from "@/components/dashboard/BillCalendar";
 import { DebtCards } from "@/components/dashboard/DebtCards";
 import { DataManager } from "@/components/manage/DataManager";
 import { FinancialAlerts } from "@/components/dashboard/FinancialAlerts";
+import { RSUTracker } from "@/components/dashboard/RSUTracker";
+import { InsuranceTracker } from "@/components/dashboard/InsuranceTracker";
+import { EducationSavings } from "@/components/dashboard/EducationSavings";
 
 export function DashboardClient() {
   const auth = useAuth();
@@ -50,10 +53,20 @@ export function DashboardClient() {
       <Header onLogout={auth.logout} />
       <main className="container mx-auto px-4 py-6">
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="manage">Manage Data</TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between">
+            <TabsList className="grid w-full max-w-2xl grid-cols-5">
+              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+              <TabsTrigger value="rsu">RSU</TabsTrigger>
+              <TabsTrigger value="insurance">Insurance</TabsTrigger>
+              <TabsTrigger value="education">Education</TabsTrigger>
+              <TabsTrigger value="manage">Manage</TabsTrigger>
+            </TabsList>
+            {data.lastSaved && (
+              <span className="text-[10px] text-muted-foreground hidden sm:block">
+                Saved {new Date(data.lastSaved).toLocaleTimeString()}
+              </span>
+            )}
+          </div>
 
           <TabsContent value="dashboard" className="space-y-6">
             <FinancialAlerts summary={data.summary} calendarEntries={data.calendarEntries} />
@@ -73,6 +86,18 @@ export function DashboardClient() {
               onUpdateCreditCard={data.updateCreditCard}
               onUpdateAffirmPlan={data.updateAffirmPlan}
             />
+          </TabsContent>
+
+          <TabsContent value="rsu">
+            <RSUTracker data={data} />
+          </TabsContent>
+
+          <TabsContent value="insurance">
+            <InsuranceTracker data={data} />
+          </TabsContent>
+
+          <TabsContent value="education">
+            <EducationSavings data={data} />
           </TabsContent>
 
           <TabsContent value="manage">

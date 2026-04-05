@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type {
   IncomeSource,
@@ -10,6 +10,11 @@ import type {
   FinancialSummary,
   BillCalendarEntry,
   BudgetBreakdown,
+  RSUGrant,
+  VestingEvent,
+  InsurancePolicy,
+  EducationAccount,
+  Contribution,
 } from "./types";
 import { calcFinancialSummary, getBillCalendarEntries, calc503020 } from "./calculations";
 import {
@@ -24,7 +29,12 @@ const KEYS = {
   creditCards: "finance-tracker-credit-cards",
   affirmPlans: "finance-tracker-affirm-plans",
   bills: "finance-tracker-bills",
+  rsuGrants: "finance-tracker-rsu-grants",
+  insurancePolicies: "finance-tracker-insurance-policies",
+  educationAccounts: "finance-tracker-education-accounts",
+  contributions: "finance-tracker-contributions",
   initialized: "finance-tracker-initialized",
+  lastSaved: "finance-tracker-last-saved",
 } as const;
 
 function load<T>(key: string, fallback: T): T {
@@ -47,13 +57,20 @@ export function useFinanceData() {
   const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
   const [affirmPlans, setAffirmPlans] = useState<AffirmPlan[]>([]);
   const [bills, setBills] = useState<Bill[]>([]);
+  const [rsuGrants, setRsuGrants] = useState<RSUGrant[]>([]);
+  const [insurancePolicies, setInsurancePolicies] = useState<InsurancePolicy[]>([]);
+  const [educationAccounts, setEducationAccounts] = useState<EducationAccount[]>([]);
+  const [contributions, setContributions] = useState<Contribution[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
+
+  // Auto-backup interval ref
+  const autoBackupRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load from localStorage on mount
   useEffect(() => {
     const initialized = localStorage.getItem(KEYS.initialized);
     if (!initialized) {
-      // First time - load sample data
       setIncome(sampleIncome);
       setCreditCards(sampleCreditCards);
       setAffirmPlans(sampleAffirmPlans);
@@ -69,29 +86,69 @@ export function useFinanceData() {
       setAffirmPlans(load<AffirmPlan[]>(KEYS.affirmPlans, []));
       setBills(load<Bill[]>(KEYS.bills, []));
     }
+    setRsuGrants(load<RSUGrant[]>(KEYS.rsuGrants, []));
+    setInsurancePolicies(load<InsurancePolicy[]>(KEYS.insurancePolicies, []));
+    setEducationAccounts(load<EducationAccount[]>(KEYS.educationAccounts, []));
+    setContributions(load<Contribution[]>(KEYS.contributions, []));
+    setLastSaved(localStorage.getItem(KEYS.lastSaved));
     setIsLoaded(true);
+  }, []);
+
+  // Helper to update lastSaved timestamp
+  const updateLastSaved = useCallback(() => {
+    const now = new Date().toISOString();
+    setLastSaved(now);
+    localStorage.setItem(KEYS.lastSaved, now);
   }, []);
 
   // Persist on change
   useEffect(() => {
     if (!isLoaded) return;
     save(KEYS.income, income);
-  }, [income, isLoaded]);
+    updateLastSaved();
+  }, [income, isLoaded, updateLastSaved]);
 
   useEffect(() => {
     if (!isLoaded) return;
     save(KEYS.creditCards, creditCards);
-  }, [creditCards, isLoaded]);
+    updateLastSaved();
+  }, [creditCards, isLoaded, updateLastSaved]);
 
   useEffect(() => {
     if (!isLoaded) return;
     save(KEYS.affirmPlans, affirmPlans);
-  }, [affirmPlans, isLoaded]);
+    updateLastSaved();
+  }, [affirmPlans, isLoaded, updateLastSaved]);
 
   useEffect(() => {
     if (!isLoaded) return;
     save(KEYS.bills, bills);
-  }, [bills, isLoaded]);
+    updateLastSaved();
+  }, [bills, isLoaded, updateLastSaved]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    save(KEYS.rsuGrants, rsuGrants);
+    updateLastSaved();
+  }, [rsuGrants, isLoaded, updateLastSaved]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    save(KEYS.insurancePolicies, insurancePolicies);
+    updateLastSaved();
+  }, [insurancePolicies, isLoaded, updateLastSaved]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    save(KEYS.educationAccounts, educationAccounts);
+    updateLastSaved();
+  }, [educationAccounts, isLoaded, updateLastSaved]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    save(KEYS.contributions, contributions);
+    updateLastSaved();
+  }, [contributions, isLoaded, updateLastSaved]);
 
   // Computed values
   const summary: FinancialSummary = useMemo(
@@ -161,6 +218,89 @@ export function useFinanceData() {
     setBills((prev) => prev.filter((b) => b.id !== id));
   }, []);
 
+  // RSU Grant CRUD
+  const addRsuGrant = useCallback((data: Omit<RSUGrant, "id" | "vestingSchedule">) => {
+    setRsuGrants((prev) => [...prev, { ...data, id: uuidv4(), vestingSchedule: [] }]);
+  }, []);
+
+  const updateRsuGrant = useCallback((id: string, data: Partial<RSUGrant>) => {
+    setRsuGrants((prev) => prev.map((g) => (g.id === id ? { ...g, ...data } : g)));
+  }, []);
+
+  const deleteRsuGrant = useCallback((id: string) => {
+    setRsuGrants((prev) => prev.filter((g) => g.id !== id));
+  }, []);
+
+  const addVestingEvent = useCallback((grantId: string, data: Omit<VestingEvent, "id">) => {
+    setRsuGrants((prev) =>
+      prev.map((g) =>
+        g.id === grantId
+          ? { ...g, vestingSchedule: [...g.vestingSchedule, { ...data, id: uuidv4() }] }
+          : g
+      )
+    );
+  }, []);
+
+  const updateVestingEvent = useCallback((grantId: string, eventId: string, data: Partial<VestingEvent>) => {
+    setRsuGrants((prev) =>
+      prev.map((g) =>
+        g.id === grantId
+          ? {
+              ...g,
+              vestingSchedule: g.vestingSchedule.map((e) =>
+                e.id === eventId ? { ...e, ...data } : e
+              ),
+            }
+          : g
+      )
+    );
+  }, []);
+
+  const deleteVestingEvent = useCallback((grantId: string, eventId: string) => {
+    setRsuGrants((prev) =>
+      prev.map((g) =>
+        g.id === grantId
+          ? { ...g, vestingSchedule: g.vestingSchedule.filter((e) => e.id !== eventId) }
+          : g
+      )
+    );
+  }, []);
+
+  // Insurance CRUD
+  const addInsurancePolicy = useCallback((data: Omit<InsurancePolicy, "id">) => {
+    setInsurancePolicies((prev) => [...prev, { ...data, id: uuidv4() }]);
+  }, []);
+
+  const updateInsurancePolicy = useCallback((id: string, data: Partial<InsurancePolicy>) => {
+    setInsurancePolicies((prev) => prev.map((p) => (p.id === id ? { ...p, ...data } : p)));
+  }, []);
+
+  const deleteInsurancePolicy = useCallback((id: string) => {
+    setInsurancePolicies((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
+  // Education Account CRUD
+  const addEducationAccount = useCallback((data: Omit<EducationAccount, "id">) => {
+    setEducationAccounts((prev) => [...prev, { ...data, id: uuidv4() }]);
+  }, []);
+
+  const updateEducationAccount = useCallback((id: string, data: Partial<EducationAccount>) => {
+    setEducationAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...data } : a)));
+  }, []);
+
+  const deleteEducationAccount = useCallback((id: string) => {
+    setEducationAccounts((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
+  // Contribution CRUD
+  const addContribution = useCallback((data: Omit<Contribution, "id">) => {
+    setContributions((prev) => [...prev, { ...data, id: uuidv4() }]);
+  }, []);
+
+  const deleteContribution = useCallback((id: string) => {
+    setContributions((prev) => prev.filter((c) => c.id !== id));
+  }, []);
+
   // Bulk operations
   const loadSampleData = useCallback(() => {
     setIncome(sampleIncome);
@@ -174,11 +314,26 @@ export function useFinanceData() {
     setCreditCards([]);
     setAffirmPlans([]);
     setBills([]);
+    setRsuGrants([]);
+    setInsurancePolicies([]);
+    setEducationAccounts([]);
+    setContributions([]);
     localStorage.removeItem(KEYS.initialized);
   }, []);
 
+  const getAllData = useCallback(() => ({
+    income,
+    creditCards,
+    affirmPlans,
+    bills,
+    rsuGrants,
+    insurancePolicies,
+    educationAccounts,
+    contributions,
+  }), [income, creditCards, affirmPlans, bills, rsuGrants, insurancePolicies, educationAccounts, contributions]);
+
   const exportData = useCallback(() => {
-    const data = { income, creditCards, affirmPlans, bills };
+    const data = getAllData();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -186,7 +341,7 @@ export function useFinanceData() {
     a.download = `finance-tracker-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [income, creditCards, affirmPlans, bills]);
+  }, [getAllData]);
 
   const importData = useCallback((json: string) => {
     try {
@@ -195,6 +350,10 @@ export function useFinanceData() {
       if (data.creditCards) setCreditCards(data.creditCards);
       if (data.affirmPlans) setAffirmPlans(data.affirmPlans);
       if (data.bills) setBills(data.bills);
+      if (data.rsuGrants) setRsuGrants(data.rsuGrants);
+      if (data.insurancePolicies) setInsurancePolicies(data.insurancePolicies);
+      if (data.educationAccounts) setEducationAccounts(data.educationAccounts);
+      if (data.contributions) setContributions(data.contributions);
       localStorage.setItem(KEYS.initialized, "true");
       return true;
     } catch {
@@ -202,13 +361,41 @@ export function useFinanceData() {
     }
   }, []);
 
+  // Auto-backup: save to localStorage backup every 5 minutes
+  useEffect(() => {
+    if (!isLoaded) return;
+    autoBackupRef.current = setInterval(() => {
+      const data = {
+        income,
+        creditCards,
+        affirmPlans,
+        bills,
+        rsuGrants,
+        insurancePolicies,
+        educationAccounts,
+        contributions,
+      };
+      localStorage.setItem("finance-tracker-auto-backup", JSON.stringify(data));
+      localStorage.setItem("finance-tracker-auto-backup-time", new Date().toISOString());
+    }, 5 * 60 * 1000);
+
+    return () => {
+      if (autoBackupRef.current) clearInterval(autoBackupRef.current);
+    };
+  }, [isLoaded, income, creditCards, affirmPlans, bills, rsuGrants, insurancePolicies, educationAccounts, contributions]);
+
   return {
     // Data
     income,
     creditCards,
     affirmPlans,
     bills,
+    rsuGrants,
+    insurancePolicies,
+    educationAccounts,
+    contributions,
     isLoaded,
+    lastSaved,
 
     // Computed
     summary,
@@ -234,6 +421,26 @@ export function useFinanceData() {
     addBill,
     updateBill,
     deleteBill,
+
+    // RSU CRUD
+    addRsuGrant,
+    updateRsuGrant,
+    deleteRsuGrant,
+    addVestingEvent,
+    updateVestingEvent,
+    deleteVestingEvent,
+
+    // Insurance CRUD
+    addInsurancePolicy,
+    updateInsurancePolicy,
+    deleteInsurancePolicy,
+
+    // Education CRUD
+    addEducationAccount,
+    updateEducationAccount,
+    deleteEducationAccount,
+    addContribution,
+    deleteContribution,
 
     // Bulk
     loadSampleData,
