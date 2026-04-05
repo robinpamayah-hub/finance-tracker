@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/table";
 import type { RSUGrant, StockQuote } from "@/lib/types";
 import type { FinanceData } from "@/lib/storage";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, maskedCurrency } from "@/lib/utils";
+import { useMask } from "@/lib/mask-context";
 import { format, isPast, isFuture, differenceInDays } from "date-fns";
 
 function formatCAD(usd: number, rate: number): string {
@@ -49,6 +50,7 @@ function loadCachedQuotes(): Record<string, StockQuote & { cachedAt: number }> {
 }
 
 export function RSUTracker({ data }: RSUTrackerProps) {
+  const isMasked = useMask();
   const [quotes, setQuotes] = useState<Record<string, StockQuote>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [grantFormOpen, setGrantFormOpen] = useState(false);
@@ -356,7 +358,7 @@ export function RSUTracker({ data }: RSUTrackerProps) {
                       <div className="flex items-center gap-2">
                         <h2 className="text-3xl font-bold">
                           {quote && quote.price > 0
-                            ? `$${quote.price.toFixed(2)}`
+                            ? isMasked ? "$\u2022\u2022\u2022\u2022\u2022" : `$${quote.price.toFixed(2)}`
                             : isLoading
                             ? "Loading..."
                             : "---"}
@@ -429,10 +431,10 @@ export function RSUTracker({ data }: RSUTrackerProps) {
                         {tickerTotal.toLocaleString()}
                       </p>
                       <p className="text-sm font-semibold text-blue-500">
-                        {formatCurrency(tickerTotal * quote.price)} USD
+                        {maskedCurrency(tickerTotal * quote.price, isMasked)} USD
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {formatCAD(tickerTotal * quote.price, cadRate)} CAD
+                        {isMasked ? "C$\u2022\u2022\u2022\u2022\u2022" : formatCAD(tickerTotal * quote.price, cadRate)} CAD
                       </p>
                     </div>
                     <div>
@@ -443,10 +445,10 @@ export function RSUTracker({ data }: RSUTrackerProps) {
                         {tickerVested.toLocaleString()}
                       </p>
                       <p className="text-sm font-semibold text-emerald-500">
-                        {formatCurrency(tickerVested * quote.price)} USD
+                        {maskedCurrency(tickerVested * quote.price, isMasked)} USD
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {formatCAD(tickerVested * quote.price, cadRate)} CAD
+                        {isMasked ? "C$\u2022\u2022\u2022\u2022\u2022" : formatCAD(tickerVested * quote.price, cadRate)} CAD
                       </p>
                     </div>
                     <div>
@@ -457,10 +459,10 @@ export function RSUTracker({ data }: RSUTrackerProps) {
                         {tickerUnvested.toLocaleString()}
                       </p>
                       <p className="text-sm font-semibold text-violet-500">
-                        {formatCurrency(tickerUnvested * quote.price)} USD
+                        {maskedCurrency(tickerUnvested * quote.price, isMasked)} USD
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {formatCAD(tickerUnvested * quote.price, cadRate)} CAD
+                        {isMasked ? "C$\u2022\u2022\u2022\u2022\u2022" : formatCAD(tickerUnvested * quote.price, cadRate)} CAD
                       </p>
                     </div>
                     <div>
@@ -468,7 +470,7 @@ export function RSUTracker({ data }: RSUTrackerProps) {
                         Per Share (USD)
                       </p>
                       <p className="text-xl font-bold">
-                        ${quote.price.toFixed(2)}
+                        {isMasked ? "$\u2022\u2022\u2022\u2022\u2022" : `$${quote.price.toFixed(2)}`}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         live market price
@@ -521,10 +523,10 @@ export function RSUTracker({ data }: RSUTrackerProps) {
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Vested Value (USD)</p>
             <p className="text-2xl font-bold text-emerald-500">
-              {formatCurrency(totalVestedValue)}
+              {maskedCurrency(totalVestedValue, isMasked)}
             </p>
             <p className="text-xs text-emerald-400">
-              {formatCAD(totalVestedValue, cadRate)} CAD
+              {isMasked ? "C$\u2022\u2022\u2022\u2022\u2022" : formatCAD(totalVestedValue, cadRate)} CAD
             </p>
             <p className="text-[10px] text-muted-foreground">
               {totalVestedShares.toLocaleString()} shares
@@ -535,10 +537,10 @@ export function RSUTracker({ data }: RSUTrackerProps) {
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Unvested Value (USD)</p>
             <p className="text-2xl font-bold text-violet-500">
-              {formatCurrency(totalUnvestedValue)}
+              {maskedCurrency(totalUnvestedValue, isMasked)}
             </p>
             <p className="text-xs text-violet-400">
-              {formatCAD(totalUnvestedValue, cadRate)} CAD
+              {isMasked ? "C$\u2022\u2022\u2022\u2022\u2022" : formatCAD(totalUnvestedValue, cadRate)} CAD
             </p>
             <p className="text-[10px] text-muted-foreground">
               {totalUnvestedShares.toLocaleString()} shares
@@ -549,10 +551,10 @@ export function RSUTracker({ data }: RSUTrackerProps) {
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Total Portfolio (USD)</p>
             <p className="text-2xl font-bold text-blue-500">
-              {formatCurrency(totalVestedValue + totalUnvestedValue)}
+              {maskedCurrency(totalVestedValue + totalUnvestedValue, isMasked)}
             </p>
             <p className="text-xs text-blue-400">
-              {formatCAD(totalVestedValue + totalUnvestedValue, cadRate)} CAD
+              {isMasked ? "C$\u2022\u2022\u2022\u2022\u2022" : formatCAD(totalVestedValue + totalUnvestedValue, cadRate)} CAD
             </p>
             <p className="text-[10px] text-muted-foreground">
               {totalAllShares.toLocaleString()} total shares
@@ -663,14 +665,14 @@ export function RSUTracker({ data }: RSUTrackerProps) {
                         {quote && quote.price > 0 ? (
                           <>
                             <p className="text-lg font-bold">
-                              {formatCurrency(scheduledShares * quote.price)}
+                              {maskedCurrency(scheduledShares * quote.price, isMasked)}
                             </p>
                             <p className="text-xs text-emerald-500">
-                              {formatCurrency(vestedShares * quote.price)}{" "}
+                              {maskedCurrency(vestedShares * quote.price, isMasked)}{" "}
                               vested
                             </p>
                             <p className="text-xs text-violet-500">
-                              {formatCurrency(unvestedShares * quote.price)}{" "}
+                              {maskedCurrency(unvestedShares * quote.price, isMasked)}{" "}
                               unvested
                             </p>
                           </>
@@ -738,7 +740,7 @@ export function RSUTracker({ data }: RSUTrackerProps) {
                                   ];
                                 }
                                 return [
-                                  formatCurrency(Number(value)),
+                                  maskedCurrency(Number(value), isMasked),
                                   "Value",
                                 ];
                               }}
@@ -844,7 +846,7 @@ export function RSUTracker({ data }: RSUTrackerProps) {
                                                 : "text-violet-500"
                                             }
                                           >
-                                            {formatCurrency(eventValue)}
+                                            {maskedCurrency(eventValue, isMasked)}
                                           </span>
                                         ) : (
                                           "---"
@@ -853,7 +855,7 @@ export function RSUTracker({ data }: RSUTrackerProps) {
                                       <TableCell className="text-sm">
                                         {eventValue !== null ? (
                                           <span className="text-muted-foreground">
-                                            {formatCAD(eventValue, cadRate)}
+                                            {isMasked ? "C$\u2022\u2022\u2022\u2022\u2022" : formatCAD(eventValue, cadRate)}
                                           </span>
                                         ) : (
                                           "---"

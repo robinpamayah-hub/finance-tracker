@@ -12,7 +12,8 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { FinancialSummary } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils";
+import { maskedCurrency } from "@/lib/utils";
+import { useMask } from "@/lib/mask-context";
 
 interface CashFlowChartProps {
   summary: FinancialSummary;
@@ -27,6 +28,7 @@ const COLORS = {
 };
 
 export function CashFlowChart({ summary }: CashFlowChartProps) {
+  const isMasked = useMask();
   const items = [
     { name: "Income", value: summary.totalMonthlyIncome, color: COLORS.income },
     { name: "Credit Cards", value: -summary.creditCardTotal, color: COLORS.creditCards },
@@ -76,7 +78,7 @@ export function CashFlowChart({ summary }: CashFlowChartProps) {
               <Tooltip
                 formatter={(_value, _name, props) => {
                   const display = (props?.payload as { display?: number })?.display ?? 0;
-                  return [formatCurrency(display), "Amount"];
+                  return [maskedCurrency(display, isMasked), "Amount"];
                 }}
                 contentStyle={{
                   backgroundColor: "hsl(var(--popover))",

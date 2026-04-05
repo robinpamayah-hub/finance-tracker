@@ -2,7 +2,8 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { BudgetBreakdown } from "@/lib/types";
-import { formatCurrency, formatPercent } from "@/lib/utils";
+import { maskedCurrency, maskedPercent } from "@/lib/utils";
+import { useMask } from "@/lib/mask-context";
 
 interface BudgetAnalysisProps {
   budgetBreakdown: BudgetBreakdown;
@@ -16,6 +17,7 @@ const CATEGORIES = [
 ] as const;
 
 export function BudgetAnalysis({ budgetBreakdown, totalIncome }: BudgetAnalysisProps) {
+  const isMasked = useMask();
   if (totalIncome === 0) {
     return (
       <Card className="border-0 shadow-sm">
@@ -105,10 +107,10 @@ export function BudgetAnalysis({ budgetBreakdown, totalIncome }: BudgetAnalysisP
                       : "text-amber-600 dark:text-amber-400"
                   }`}
                 >
-                  {formatPercent(actual)}
+                  {maskedPercent(actual, isMasked)}
                 </p>
                 <p className="text-[10px] text-muted-foreground">
-                  {formatCurrency(amount)} / {cat.target}%
+                  {maskedCurrency(amount, isMasked)} / {cat.target}%
                 </p>
               </div>
             );

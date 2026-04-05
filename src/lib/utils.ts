@@ -44,3 +44,23 @@ export function getDTILabel(dti: number): string {
   if (dti <= 50) return "Moderate";
   return "High Risk";
 }
+
+const MASK_PLACEHOLDER = "$•••••";
+const MASK_PERCENT = "••%";
+const MASK_NUMBER = "•••";
+
+export function maskedCurrency(amount: number, isMasked: boolean): string {
+  return isMasked ? MASK_PLACEHOLDER : formatCurrency(amount);
+}
+
+export function maskedCurrencyExact(amount: number, isMasked: boolean): string {
+  return isMasked ? MASK_PLACEHOLDER : formatCurrencyExact(amount);
+}
+
+export function maskedPercent(value: number, isMasked: boolean): string {
+  return isMasked ? MASK_PERCENT : formatPercent(value);
+}
+
+export function maskedNumber(value: number, isMasked: boolean): string {
+  return isMasked ? MASK_NUMBER : value.toLocaleString();
+}

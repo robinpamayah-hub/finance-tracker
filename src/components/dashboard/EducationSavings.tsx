@@ -31,7 +31,8 @@ import {
 } from "@/components/ui/table";
 import type { EducationAccount, AccountType, Contribution } from "@/lib/types";
 import type { FinanceData } from "@/lib/storage";
-import { formatCurrency, formatCurrencyExact } from "@/lib/utils";
+import { formatCurrency, formatCurrencyExact, maskedCurrency, maskedCurrencyExact } from "@/lib/utils";
+import { useMask } from "@/lib/mask-context";
 import { format, differenceInMonths } from "date-fns";
 
 interface EducationSavingsProps {
@@ -77,6 +78,7 @@ function projectGrowth(balance: number, monthly: number, months: number, annualR
 }
 
 export function EducationSavings({ data }: EducationSavingsProps) {
+  const isMasked = useMask();
   const [formOpen, setFormOpen] = useState(false);
   const [editAccount, setEditAccount] = useState<EducationAccount | undefined>();
   const [form, setForm] = useState(emptyForm);
@@ -146,21 +148,21 @@ export function EducationSavings({ data }: EducationSavingsProps) {
         <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-500/10 to-emerald-600/5">
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Total Balance</p>
-            <p className="text-2xl font-bold text-emerald-500">{formatCurrency(totalBalance)}</p>
+            <p className="text-2xl font-bold text-emerald-500">{maskedCurrency(totalBalance, isMasked)}</p>
             <p className="text-xs text-muted-foreground mt-1">across all accounts</p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm bg-gradient-to-br from-violet-500/10 to-violet-600/5">
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Monthly Contributions</p>
-            <p className="text-2xl font-bold text-violet-500">{formatCurrency(totalMonthlyContrib)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{formatCurrency(totalMonthlyContrib * 12)}/year</p>
+            <p className="text-2xl font-bold text-violet-500">{maskedCurrency(totalMonthlyContrib, isMasked)}</p>
+            <p className="text-xs text-muted-foreground mt-1">{maskedCurrency(totalMonthlyContrib * 12, isMasked)}/year</p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-500/10 to-blue-600/5">
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Target Total</p>
-            <p className="text-2xl font-bold text-blue-500">{formatCurrency(totalTarget)}</p>
+            <p className="text-2xl font-bold text-blue-500">{maskedCurrency(totalTarget, isMasked)}</p>
             <p className="text-xs text-muted-foreground mt-1">
               {totalTarget > 0 ? `${((totalBalance / totalTarget) * 100).toFixed(0)}% funded` : "No targets set"}
             </p>
@@ -214,14 +216,14 @@ export function EducationSavings({ data }: EducationSavingsProps) {
                   <div>
                     <CardTitle className="text-base">{name}</CardTitle>
                     <p className="text-xs text-muted-foreground">
-                      {accounts.length} {accounts.length === 1 ? "account" : "accounts"} &middot; {formatCurrency(beneficiaryBalance)} balance
+                      {accounts.length} {accounts.length === 1 ? "account" : "accounts"} &middot; {maskedCurrency(beneficiaryBalance, isMasked)} balance
                     </p>
                   </div>
                 </div>
                 {beneficiaryTarget > 0 && (
                   <div className="text-right">
                     <p className="text-sm font-semibold">{((beneficiaryBalance / beneficiaryTarget) * 100).toFixed(0)}%</p>
-                    <p className="text-[10px] text-muted-foreground">of {formatCurrency(beneficiaryTarget)} goal</p>
+                    <p className="text-[10px] text-muted-foreground">of {maskedCurrency(beneficiaryTarget, isMasked)} goal</p>
                   </div>
                 )}
               </div>
@@ -260,14 +262,14 @@ export function EducationSavings({ data }: EducationSavingsProps) {
                         axisLine={false}
                       />
                       <YAxis
-                        tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                        tickFormatter={(v) => isMasked ? "$\u2022\u2022\u2022" : `$${(v / 1000).toFixed(0)}k`}
                         tick={{ fontSize: 10, fill: "#9ca3af" }}
                         tickLine={false}
                         axisLine={false}
                         width={45}
                       />
                       <Tooltip
-                        formatter={(value) => [formatCurrency(Number(value)), "Projected Balance"]}
+                        formatter={(value) => [maskedCurrency(Number(value), isMasked), "Projected Balance"]}
                         labelFormatter={(m) => `Year ${(Number(m) / 12).toFixed(1)}`}
                         contentStyle={{
                           backgroundColor: "hsl(var(--popover))",
@@ -316,9 +318,9 @@ export function EducationSavings({ data }: EducationSavingsProps) {
                       <TableCell>
                         <Badge variant="secondary">{ACCOUNT_TYPE_LABELS[account.accountType]}</Badge>
                       </TableCell>
-                      <TableCell className="font-semibold">{formatCurrencyExact(account.balance)}</TableCell>
-                      <TableCell>{formatCurrencyExact(account.monthlyContribution)}</TableCell>
-                      <TableCell>{account.targetAmount > 0 ? formatCurrency(account.targetAmount) : "---"}</TableCell>
+                      <TableCell className="font-semibold">{maskedCurrencyExact(account.balance, isMasked)}</TableCell>
+                      <TableCell>{maskedCurrencyExact(account.monthlyContribution, isMasked)}</TableCell>
+                      <TableCell>{account.targetAmount > 0 ? maskedCurrency(account.targetAmount, isMasked) : "---"}</TableCell>
                       <TableCell>
                         {account.targetDate ? format(new Date(account.targetDate), "MMM yyyy") : "---"}
                       </TableCell>
@@ -389,7 +391,7 @@ export function EducationSavings({ data }: EducationSavingsProps) {
                               {contrib.note && <span className="text-xs text-muted-foreground">- {contrib.note}</span>}
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="font-medium text-emerald-500">+{formatCurrencyExact(contrib.amount)}</span>
+                              <span className="font-medium text-emerald-500">+{maskedCurrencyExact(contrib.amount, isMasked)}</span>
                               <Button
                                 variant="ghost"
                                 size="sm"

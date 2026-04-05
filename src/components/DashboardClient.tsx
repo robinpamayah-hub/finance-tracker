@@ -1,7 +1,9 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import { useAuth } from "@/lib/auth";
 import { useFinanceData } from "@/lib/storage";
+import { MaskProvider } from "@/lib/mask-context";
 import { LoginPage } from "@/components/LoginPage";
 import { Header } from "@/components/layout/Header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,6 +23,19 @@ import { IncomeHistory } from "@/components/dashboard/IncomeHistory";
 export function DashboardClient() {
   const auth = useAuth();
   const data = useFinanceData();
+  const [isMasked, setIsMasked] = useState(false);
+
+  const handleToggleMask = useCallback(() => {
+    setIsMasked(true);
+  }, []);
+
+  const handleUnlockRequest = useCallback(async (password: string): Promise<boolean> => {
+    const valid = await auth.verifyPassword(password);
+    if (valid) {
+      setIsMasked(false);
+    }
+    return valid;
+  }, [auth]);
 
   if (!auth.isLoaded) {
     return (
@@ -50,67 +65,74 @@ export function DashboardClient() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header onLogout={auth.logout} />
-      <main className="container mx-auto px-4 py-6">
-        <Tabs defaultValue="dashboard" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <TabsList className="grid w-full max-w-3xl grid-cols-6">
-              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-              <TabsTrigger value="income-history">Income</TabsTrigger>
-              <TabsTrigger value="rsu">RSU</TabsTrigger>
-              <TabsTrigger value="insurance">Insurance</TabsTrigger>
-              <TabsTrigger value="education">Education</TabsTrigger>
-              <TabsTrigger value="manage">Manage</TabsTrigger>
-            </TabsList>
-            {data.lastSaved && (
-              <span className="text-[10px] text-muted-foreground hidden sm:block">
-                Saved {new Date(data.lastSaved).toLocaleTimeString()}
-              </span>
-            )}
-          </div>
-
-          <TabsContent value="dashboard" className="space-y-6">
-            <FinancialAlerts summary={data.summary} calendarEntries={data.calendarEntries} />
-            <SummaryCards summary={data.summary} />
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <CashFlowChart summary={data.summary} />
-              <ExpenseBreakdown summary={data.summary} />
-              <BudgetAnalysis
-                budgetBreakdown={data.budgetBreakdown}
-                totalIncome={data.summary.totalMonthlyIncome}
-              />
-              <BillCalendar entries={data.calendarEntries} />
+    <MaskProvider isMasked={isMasked}>
+      <div className="min-h-screen bg-background">
+        <Header
+          onLogout={auth.logout}
+          isMasked={isMasked}
+          onToggleMask={handleToggleMask}
+          onUnlockRequest={handleUnlockRequest}
+        />
+        <main className="container mx-auto px-4 py-6">
+          <Tabs defaultValue="dashboard" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <TabsList className="grid w-full max-w-3xl grid-cols-6">
+                <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+                <TabsTrigger value="income-history">Income</TabsTrigger>
+                <TabsTrigger value="rsu">RSU</TabsTrigger>
+                <TabsTrigger value="insurance">Insurance</TabsTrigger>
+                <TabsTrigger value="education">Education</TabsTrigger>
+                <TabsTrigger value="manage">Manage</TabsTrigger>
+              </TabsList>
+              {data.lastSaved && (
+                <span className="text-[10px] text-muted-foreground hidden sm:block">
+                  Saved {new Date(data.lastSaved).toLocaleTimeString()}
+                </span>
+              )}
             </div>
-            <DebtCards
-              creditCards={data.creditCards}
-              affirmPlans={data.affirmPlans}
-              onUpdateCreditCard={data.updateCreditCard}
-              onUpdateAffirmPlan={data.updateAffirmPlan}
-            />
-          </TabsContent>
 
-          <TabsContent value="income-history">
-            <IncomeHistory data={data} />
-          </TabsContent>
+            <TabsContent value="dashboard" className="space-y-6">
+              <FinancialAlerts summary={data.summary} calendarEntries={data.calendarEntries} />
+              <SummaryCards summary={data.summary} />
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <CashFlowChart summary={data.summary} />
+                <ExpenseBreakdown summary={data.summary} />
+                <BudgetAnalysis
+                  budgetBreakdown={data.budgetBreakdown}
+                  totalIncome={data.summary.totalMonthlyIncome}
+                />
+                <BillCalendar entries={data.calendarEntries} />
+              </div>
+              <DebtCards
+                creditCards={data.creditCards}
+                affirmPlans={data.affirmPlans}
+                onUpdateCreditCard={data.updateCreditCard}
+                onUpdateAffirmPlan={data.updateAffirmPlan}
+              />
+            </TabsContent>
 
-          <TabsContent value="rsu">
-            <RSUTracker data={data} />
-          </TabsContent>
+            <TabsContent value="income-history">
+              <IncomeHistory data={data} />
+            </TabsContent>
 
-          <TabsContent value="insurance">
-            <InsuranceTracker data={data} />
-          </TabsContent>
+            <TabsContent value="rsu">
+              <RSUTracker data={data} />
+            </TabsContent>
 
-          <TabsContent value="education">
-            <EducationSavings data={data} />
-          </TabsContent>
+            <TabsContent value="insurance">
+              <InsuranceTracker data={data} />
+            </TabsContent>
 
-          <TabsContent value="manage">
-            <DataManager data={data} />
-          </TabsContent>
-        </Tabs>
-      </main>
-    </div>
+            <TabsContent value="education">
+              <EducationSavings data={data} />
+            </TabsContent>
+
+            <TabsContent value="manage">
+              <DataManager data={data} />
+            </TabsContent>
+          </Tabs>
+        </main>
+      </div>
+    </MaskProvider>
   );
 }

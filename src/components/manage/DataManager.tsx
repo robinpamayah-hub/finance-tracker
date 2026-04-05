@@ -49,7 +49,8 @@ import { BillForm } from "@/components/forms/BillForm";
 import type { FinanceData } from "@/lib/storage";
 import type { IncomeSource, CreditCard, AffirmPlan, Bill, InsurancePolicy, InsuranceType } from "@/lib/types";
 import { normalizeToMonthly } from "@/lib/calculations";
-import { formatCurrencyExact } from "@/lib/utils";
+import { formatCurrencyExact, maskedCurrencyExact } from "@/lib/utils";
+import { useMask } from "@/lib/mask-context";
 import type { IncomeFormValues, CreditCardFormValues, AffirmPlanFormValues, BillFormValues } from "@/lib/schemas";
 
 const INSURANCE_TYPE_LABELS: Record<InsuranceType, string> = {
@@ -80,6 +81,7 @@ function ManageDraggableRow({
   onDelete: () => void;
   showMove: boolean;
 }) {
+  const isMasked = useMask();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: policy.id,
     data: { type: "policy", policy },
@@ -98,9 +100,9 @@ function ManageDraggableRow({
       <TableCell><Badge variant="secondary">{INSURANCE_TYPE_LABELS[policy.type]}</Badge></TableCell>
       <TableCell>{policy.provider}</TableCell>
       <TableCell>
-        {formatCurrencyExact(policy.premium)}/{policy.premiumFrequency === "annual" ? "yr" : policy.premiumFrequency === "monthly" ? "mo" : policy.premiumFrequency}
+        {maskedCurrencyExact(policy.premium, isMasked)}/{policy.premiumFrequency === "annual" ? "yr" : policy.premiumFrequency === "monthly" ? "mo" : policy.premiumFrequency}
       </TableCell>
-      <TableCell>{policy.coverageAmount > 0 ? formatCurrencyExact(policy.coverageAmount) : "\u2014"}</TableCell>
+      <TableCell>{policy.coverageAmount > 0 ? maskedCurrencyExact(policy.coverageAmount, isMasked) : "\u2014"}</TableCell>
       <TableCell>
         <div className="flex gap-1">
           <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>
@@ -140,6 +142,7 @@ interface DataManagerProps {
 }
 
 export function DataManager({ data }: DataManagerProps) {
+  const isMasked = useMask();
   // Form states
   const [incomeFormOpen, setIncomeFormOpen] = useState(false);
   const [ccFormOpen, setCcFormOpen] = useState(false);
@@ -447,11 +450,11 @@ export function DataManager({ data }: DataManagerProps) {
                 {data.income.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell>{formatCurrencyExact(item.amount)}</TableCell>
+                    <TableCell>{maskedCurrencyExact(item.amount, isMasked)}</TableCell>
                     <TableCell>
                       <Badge variant="secondary">{item.frequency}</Badge>
                     </TableCell>
-                    <TableCell>{formatCurrencyExact(normalizeToMonthly(item.amount, item.frequency))}</TableCell>
+                    <TableCell>{maskedCurrencyExact(normalizeToMonthly(item.amount, item.frequency), isMasked)}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button
@@ -519,9 +522,9 @@ export function DataManager({ data }: DataManagerProps) {
                 {data.creditCards.map((card) => (
                   <TableRow key={card.id}>
                     <TableCell className="font-medium">{card.name}</TableCell>
-                    <TableCell>{formatCurrencyExact(card.balance)}</TableCell>
+                    <TableCell>{maskedCurrencyExact(card.balance, isMasked)}</TableCell>
                     <TableCell>{card.apr}%</TableCell>
-                    <TableCell>{formatCurrencyExact(card.minimumPayment)}</TableCell>
+                    <TableCell>{maskedCurrencyExact(card.minimumPayment, isMasked)}</TableCell>
                     <TableCell>{card.dueDate}th</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
@@ -590,7 +593,7 @@ export function DataManager({ data }: DataManagerProps) {
                 {data.affirmPlans.map((plan) => (
                   <TableRow key={plan.id}>
                     <TableCell className="font-medium">{plan.merchant}</TableCell>
-                    <TableCell>{formatCurrencyExact(plan.monthlyPayment)}</TableCell>
+                    <TableCell>{maskedCurrencyExact(plan.monthlyPayment, isMasked)}</TableCell>
                     <TableCell>{plan.paymentsRemaining}/{plan.totalPayments}</TableCell>
                     <TableCell>{plan.apr === 0 ? "0%" : `${plan.apr}%`}</TableCell>
                     <TableCell>{plan.dueDate}th</TableCell>
@@ -661,7 +664,7 @@ export function DataManager({ data }: DataManagerProps) {
                 {data.bills.map((bill) => (
                   <TableRow key={bill.id}>
                     <TableCell className="font-medium">{bill.name}</TableCell>
-                    <TableCell>{formatCurrencyExact(bill.amount)}</TableCell>
+                    <TableCell>{maskedCurrencyExact(bill.amount, isMasked)}</TableCell>
                     <TableCell>
                       <Badge variant="secondary">{bill.category}</Badge>
                     </TableCell>

@@ -2,7 +2,8 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import type { FinancialSummary } from "@/lib/types";
-import { formatCurrency, formatPercent, getDTIColor, getDTILabel } from "@/lib/utils";
+import { maskedCurrency, maskedPercent, getDTIColor, getDTILabel } from "@/lib/utils";
+import { useMask } from "@/lib/mask-context";
 
 interface SummaryCardsProps {
   summary: FinancialSummary;
@@ -67,30 +68,31 @@ const cards = [
 ];
 
 export function SummaryCards({ summary }: SummaryCardsProps) {
+  const isMasked = useMask();
   const cashFlowPositive = summary.netCashFlow >= 0;
 
   const values = [
     {
-      display: formatCurrency(summary.totalMonthlyIncome),
+      display: maskedCurrency(summary.totalMonthlyIncome, isMasked),
       color: "text-emerald-600 dark:text-emerald-400",
     },
     {
-      display: formatCurrency(summary.totalMonthlyObligations),
+      display: maskedCurrency(summary.totalMonthlyObligations, isMasked),
       color: "text-rose-600 dark:text-rose-400",
     },
     {
-      display: `${cashFlowPositive ? "+" : ""}${formatCurrency(summary.netCashFlow)}`,
+      display: `${cashFlowPositive ? "+" : ""}${maskedCurrency(summary.netCashFlow, isMasked)}`,
       color: cashFlowPositive
         ? "text-blue-600 dark:text-blue-400"
         : "text-red-600 dark:text-red-400",
     },
     {
-      display: formatPercent(summary.dtiRatio),
+      display: maskedPercent(summary.dtiRatio, isMasked),
       color: getDTIColor(summary.dtiRatio),
       sub: getDTILabel(summary.dtiRatio),
     },
     {
-      display: formatPercent(summary.savingsRate),
+      display: maskedPercent(summary.savingsRate, isMasked),
       color:
         summary.savingsRate >= 20
           ? "text-emerald-600 dark:text-emerald-400"

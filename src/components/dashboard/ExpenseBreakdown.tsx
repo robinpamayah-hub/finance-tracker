@@ -3,7 +3,8 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { FinancialSummary } from "@/lib/types";
-import { formatCurrency, formatPercent } from "@/lib/utils";
+import { maskedCurrency, maskedPercent } from "@/lib/utils";
+import { useMask } from "@/lib/mask-context";
 
 interface ExpenseBreakdownProps {
   summary: FinancialSummary;
@@ -12,6 +13,7 @@ interface ExpenseBreakdownProps {
 const COLORS = ["#fb7185", "#a78bfa", "#fbbf24"];
 
 export function ExpenseBreakdown({ summary }: ExpenseBreakdownProps) {
+  const isMasked = useMask();
   const data = [
     { name: "Credit Cards", value: summary.creditCardTotal },
     { name: "Affirm/BNPL", value: summary.affirmTotal },
@@ -61,7 +63,7 @@ export function ExpenseBreakdown({ summary }: ExpenseBreakdownProps) {
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value) => [formatCurrency(Number(value)), "Amount"]}
+                  formatter={(value) => [maskedCurrency(Number(value), isMasked), "Amount"]}
                   contentStyle={{
                     backgroundColor: "hsl(var(--popover))",
                     border: "1px solid hsl(var(--border))",
@@ -92,7 +94,7 @@ export function ExpenseBreakdown({ summary }: ExpenseBreakdownProps) {
                   fontSize={18}
                   fontWeight={700}
                 >
-                  {formatCurrency(total)}
+                  {maskedCurrency(total, isMasked)}
                 </text>
               </PieChart>
             </ResponsiveContainer>
@@ -110,7 +112,7 @@ export function ExpenseBreakdown({ summary }: ExpenseBreakdownProps) {
                       />
                       <span className="text-muted-foreground">{item.name}</span>
                     </div>
-                    <span className="font-semibold">{formatCurrency(item.value)}</span>
+                    <span className="font-semibold">{maskedCurrency(item.value, isMasked)}</span>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                     <div
@@ -119,7 +121,7 @@ export function ExpenseBreakdown({ summary }: ExpenseBreakdownProps) {
                     />
                   </div>
                   <p className="text-[10px] text-muted-foreground text-right">
-                    {formatPercent(pct)}
+                    {maskedPercent(pct, isMasked)}
                   </p>
                 </div>
               );

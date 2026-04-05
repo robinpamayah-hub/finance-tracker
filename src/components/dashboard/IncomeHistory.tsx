@@ -44,7 +44,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { FinanceData } from "@/lib/storage";
-import { formatCurrencyExact } from "@/lib/utils";
+import { formatCurrencyExact, maskedCurrencyExact } from "@/lib/utils";
+import { useMask } from "@/lib/mask-context";
 
 interface IncomeHistoryProps {
   data: FinanceData;
@@ -77,6 +78,7 @@ function formatFull(value: number): string {
 }
 
 export function IncomeHistory({ data }: IncomeHistoryProps) {
+  const isMasked = useMask();
   const [personFormOpen, setPersonFormOpen] = useState(false);
   const [editPerson, setEditPerson] = useState<string | null>(null);
   const [personName, setPersonName] = useState("");
@@ -177,7 +179,7 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
         {payload.map((entry, i) => (
           <div key={i} className="flex items-center justify-between gap-4 text-sm">
             <span style={{ color: entry.color }}>{entry.name}</span>
-            <span className="font-mono">{formatFull(entry.value)}</span>
+            <span className="font-mono">{isMasked ? "$\u2022\u2022\u2022\u2022\u2022" : formatFull(entry.value)}</span>
           </div>
         ))}
       </div>
@@ -217,7 +219,7 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
                   )}
                 </div>
                 <p className="text-2xl font-bold" style={{ color: person.color }}>
-                  {latestEntry ? formatFull(latestEntry.amount) : "$0.00"}
+                  {isMasked ? "$\u2022\u2022\u2022\u2022\u2022" : latestEntry ? formatFull(latestEntry.amount) : "$0.00"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {latestYear || "No data"}{latestYear ? ` income` : ""}
@@ -244,7 +246,7 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
                 )}
               </div>
               <p className="text-2xl font-bold text-foreground">
-                {formatFull(summaryStats.latestTotal)}
+                {isMasked ? "$\u2022\u2022\u2022\u2022\u2022" : formatFull(summaryStats.latestTotal)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 {summaryStats.latestYear} combined income
@@ -347,7 +349,7 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                         <XAxis dataKey="year" tick={{ fontSize: 12 }} />
-                        <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} width={65} />
+                        <YAxis tickFormatter={(v) => isMasked ? "$\u2022\u2022\u2022" : formatCompact(v)} tick={{ fontSize: 11 }} width={65} />
                         <Tooltip content={<CustomTooltip />} />
                         <Area
                           type="monotone"
@@ -382,7 +384,7 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                     <XAxis dataKey="year" tick={{ fontSize: 12 }} />
-                    <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} width={70} />
+                    <YAxis tickFormatter={(v) => isMasked ? "$\u2022\u2022\u2022" : formatCompact(v)} tick={{ fontSize: 11 }} width={70} />
                     <Tooltip content={<CustomTooltip />} />
                     <Area
                       type="monotone"
@@ -409,7 +411,7 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
                   <BarChart data={chartData} barGap={4}>
                     <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                     <XAxis dataKey="year" tick={{ fontSize: 12 }} />
-                    <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} width={70} />
+                    <YAxis tickFormatter={(v) => isMasked ? "$\u2022\u2022\u2022" : formatCompact(v)} tick={{ fontSize: 11 }} width={70} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend />
                     {persons.map((person) => (
@@ -473,12 +475,12 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
                           const entry = entries.find((e) => e.personId === p.id && e.year === year);
                           return (
                             <TableCell key={p.id} className="font-mono">
-                              {entry ? formatFull(entry.amount) : "---"}
+                              {entry ? (isMasked ? "$\u2022\u2022\u2022\u2022\u2022" : formatFull(entry.amount)) : "---"}
                             </TableCell>
                           );
                         })}
                         {persons.length > 1 && (
-                          <TableCell className="font-mono font-bold">{formatFull(total)}</TableCell>
+                          <TableCell className="font-mono font-bold">{isMasked ? "$\u2022\u2022\u2022\u2022\u2022" : formatFull(total)}</TableCell>
                         )}
                         <TableCell>
                           {yoyGrowth !== null ? (

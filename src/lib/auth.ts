@@ -82,6 +82,13 @@ export function useAuth() {
     setError("");
   }, []);
 
+  const verifyPassword = useCallback(async (password: string): Promise<boolean> => {
+    const storedHash = localStorage.getItem(KEYS.passwordHash);
+    if (!storedHash) return false;
+    const hash = await hashPassword(password);
+    return hash === storedHash;
+  }, []);
+
   return {
     isAuthenticated,
     isSetup,
@@ -90,5 +97,6 @@ export function useAuth() {
     createPassword,
     login,
     logout,
+    verifyPassword,
   };
 }

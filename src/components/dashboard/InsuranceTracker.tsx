@@ -44,7 +44,8 @@ import {
 import type { InsurancePolicy, InsuranceType } from "@/lib/types";
 import type { FinanceData } from "@/lib/storage";
 import { normalizeToMonthly } from "@/lib/calculations";
-import { formatCurrency, formatCurrencyExact } from "@/lib/utils";
+import { formatCurrency, formatCurrencyExact, maskedCurrency, maskedCurrencyExact } from "@/lib/utils";
+import { useMask } from "@/lib/mask-context";
 import { format } from "date-fns";
 
 interface InsuranceTrackerProps {
@@ -107,6 +108,7 @@ function DraggablePolicyRow({
   onMove: () => void;
   showMove: boolean;
 }) {
+  const isMasked = useMask();
   const {
     attributes,
     listeners,
@@ -151,17 +153,17 @@ function DraggablePolicyRow({
       <TableCell className="text-sm">{policy.provider}</TableCell>
       <TableCell className="text-sm">
         <div>
-          <p>{formatCurrencyExact(policy.premium)}</p>
+          <p>{maskedCurrencyExact(policy.premium, isMasked)}</p>
           <p className="text-[10px] text-muted-foreground">
             /{policy.premiumFrequency}
           </p>
         </div>
       </TableCell>
       <TableCell className="text-sm">
-        {formatCurrency(policy.deductible)}
+        {maskedCurrency(policy.deductible, isMasked)}
       </TableCell>
       <TableCell className="text-sm">
-        {formatCurrency(policy.coverageAmount)}
+        {maskedCurrency(policy.coverageAmount, isMasked)}
       </TableCell>
       <TableCell className="text-sm">
         {policy.renewalDate
@@ -301,6 +303,7 @@ function DroppableCategory({
 }
 
 export function InsuranceTracker({ data }: InsuranceTrackerProps) {
+  const isMasked = useMask();
   const [formOpen, setFormOpen] = useState(false);
   const [editPolicy, setEditPolicy] = useState<InsurancePolicy | undefined>();
   const [form, setForm] = useState(emptyForm);
@@ -454,7 +457,7 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Monthly Premium</p>
             <p className="text-2xl font-bold text-rose-500">
-              {formatCurrency(totalMonthlyPremium)}
+              {maskedCurrency(totalMonthlyPremium, isMasked)}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               across all policies
@@ -465,7 +468,7 @@ export function InsuranceTracker({ data }: InsuranceTrackerProps) {
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Annual Cost</p>
             <p className="text-2xl font-bold text-amber-500">
-              {formatCurrency(totalAnnualPremium)}
+              {maskedCurrency(totalAnnualPremium, isMasked)}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               estimated yearly total

@@ -4,7 +4,8 @@ import type { CreditCard, AffirmPlan } from "@/lib/types";
 import { CreditCardDetail } from "./CreditCardDetail";
 import { AffirmPlanDetail } from "./AffirmPlanDetail";
 import { calcTotalInterestProjection } from "@/lib/calculations";
-import { formatCurrency } from "@/lib/utils";
+import { maskedCurrency } from "@/lib/utils";
+import { useMask } from "@/lib/mask-context";
 
 interface DebtCardsProps {
   creditCards: CreditCard[];
@@ -19,6 +20,7 @@ export function DebtCards({
   onUpdateCreditCard,
   onUpdateAffirmPlan,
 }: DebtCardsProps) {
+  const isMasked = useMask();
   if (creditCards.length === 0 && affirmPlans.length === 0) return null;
 
   const totalCCBalance = creditCards.reduce((sum, c) => sum + c.balance, 0);
@@ -36,12 +38,12 @@ export function DebtCards({
           <div className="flex gap-4 text-xs">
             <div className="text-right">
               <p className="text-muted-foreground">Total Balance</p>
-              <p className="font-semibold">{formatCurrency(totalCCBalance)}</p>
+              <p className="font-semibold">{maskedCurrency(totalCCBalance, isMasked)}</p>
             </div>
             {totalProjectedInterest > 0 && (
               <div className="text-right">
                 <p className="text-muted-foreground">Est. Interest</p>
-                <p className="font-semibold text-red-500">{formatCurrency(totalProjectedInterest)}</p>
+                <p className="font-semibold text-red-500">{maskedCurrency(totalProjectedInterest, isMasked)}</p>
               </div>
             )}
           </div>

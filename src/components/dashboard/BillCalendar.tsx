@@ -6,7 +6,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { BillCalendarEntry, CalendarEntryStatus } from "@/lib/types";
-import { formatCurrencyExact } from "@/lib/utils";
+import { maskedCurrencyExact } from "@/lib/utils";
+import { useMask } from "@/lib/mask-context";
 import {
   startOfMonth,
   endOfMonth,
@@ -47,6 +48,7 @@ const TYPE_LABELS: Record<string, string> = {
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export function BillCalendar({ entries }: BillCalendarProps) {
+  const isMasked = useMask();
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   // Group entries by day
@@ -169,7 +171,7 @@ export function BillCalendar({ entries }: BillCalendarProps) {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="font-medium">{formatCurrencyExact(entry.amount)}</p>
+                          <p className="font-medium">{maskedCurrencyExact(entry.amount, isMasked)}</p>
                           <Badge
                             variant={STATUS_BADGE_VARIANT[entry.status]}
                             className="text-[10px] px-1 py-0"
