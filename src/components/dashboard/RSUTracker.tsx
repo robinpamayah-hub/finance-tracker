@@ -518,7 +518,7 @@ export function RSUTracker({ data }: RSUTrackerProps) {
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-500/10 to-emerald-600/5">
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Vested Value (USD)</p>
@@ -585,6 +585,32 @@ export function RSUTracker({ data }: RSUTrackerProps) {
             )}
           </CardContent>
         </Card>
+        {/* RSU Allocation from Income Breakdown */}
+        {(() => {
+          const currentYear = new Date().getFullYear();
+          const allocations = data.incomeBreakdowns
+            .filter((b) => b.rsuAllocationUSD > 0)
+            .sort((a, b) => b.year - a.year);
+          const latestAllocation = allocations.find((a) => a.year === currentYear) || allocations[0];
+          if (!latestAllocation) return null;
+          const person = data.incomeHistoryPersons.find((p) => p.id === latestAllocation.personId);
+          return (
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-indigo-500/10 to-indigo-600/5">
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">RSU Comp Allocation</p>
+                <p className="text-2xl font-bold text-indigo-500">
+                  {maskedCurrency(latestAllocation.rsuAllocationUSD, isMasked)}
+                </p>
+                <p className="text-xs text-indigo-400">
+                  {isMasked ? "C$\u2022\u2022\u2022\u2022\u2022" : formatCAD(latestAllocation.rsuAllocationUSD, cadRate)} CAD
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {person?.name || "Unknown"} &middot; {latestAllocation.year}
+                </p>
+              </CardContent>
+            </Card>
+          );
+        })()}
       </div>
 
       {/* Grants */}

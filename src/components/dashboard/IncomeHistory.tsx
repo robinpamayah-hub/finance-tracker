@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { v4 as uuidv4 } from "uuid";
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   XAxis,
@@ -14,6 +13,9 @@ import {
   CartesianGrid,
   Area,
   AreaChart,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { FinanceData } from "@/lib/storage";
-import { formatCurrencyExact, maskedCurrencyExact } from "@/lib/utils";
+import type { IncomeBreakdownItem } from "@/lib/types";
 import { useMask } from "@/lib/mask-context";
 
 interface IncomeHistoryProps {
@@ -60,6 +62,19 @@ const PRESET_COLORS = [
   "#06b6d4", // cyan
   "#ec4899", // pink
   "#84cc16", // lime
+];
+
+const BREAKDOWN_COLORS = [
+  "#6366f1", "#10b981", "#f59e0b", "#ef4444",
+  "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16",
+  "#f97316", "#14b8a6",
+];
+
+const DEFAULT_BREAKDOWN_ITEMS: Omit<IncomeBreakdownItem, "id">[] = [
+  { name: "Base Salary", percentage: 70 },
+  { name: "Bonus", percentage: 15 },
+  { name: "RSU", percentage: 10 },
+  { name: "Other", percentage: 5 },
 ];
 
 function formatCompact(value: number): string {
@@ -89,6 +104,14 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
   const [entryYear, setEntryYear] = useState(new Date().getFullYear().toString());
   const [entryAmount, setEntryAmount] = useState("");
   const [chartView, setChartView] = useState<"individual" | "combined" | "comparison">("individual");
+
+  // Editable cell state
+  const [editingCell, setEditingCell] = useState<{ personId: string; year: number } | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+
+  // Breakdown view state
+  const [breakdownPersonId, setBreakdownPersonId] = useState<string | null>(null);
+  const [breakdownYear, setBreakdownYear] = useState<number | null>(null);
 
   const persons = data.incomeHistoryPersons;
   const entries = data.incomeHistoryEntries;
@@ -170,6 +193,92 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
     setDeleteDialog(null);
   };
 
+  // Inline editing handlers
+  const startEditing = useCallback((personId: string, year: number, currentAmount: number) => {
+    setEditingCell({ personId, year });
+    setEditingValue(currentAmount > 0 ? currentAmount.toString() : "");
+  }, []);
+
+  const saveEditing = useCallback(() => {
+    if (!editingCell) return;
+    const amount = parseFloat(editingValue);
+    if (!isNaN(amount) && amount >= 0) {
+      data.setIncomeHistoryEntry(editingCell.personId, editingCell.year, amount);
+    }
+    setEditingCell(null);
+    setEditingValue("");
+  }, [editingCell, editingValue, data]);
+
+  const cancelEditing = useCallback(() => {
+    setEditingCell(null);
+    setEditingValue("");
+  }, []);
+
+  // Breakdown helpers
+  const activeBreakdown = useMemo(() => {
+    if (!breakdownPersonId || !breakdownYear) return null;
+    return data.getIncomeBreakdown(breakdownPersonId, breakdownYear);
+  }, [breakdownPersonId, breakdownYear, data]);
+
+  const activePersonIncome = useMemo(() => {
+    if (!breakdownPersonId || !breakdownYear) return 0;
+    const entry = entries.find((e) => e.personId === breakdownPersonId && e.year === breakdownYear);
+    return entry?.amount || 0;
+  }, [breakdownPersonId, breakdownYear, entries]);
+
+  const breakdownItems = useMemo(() => {
+    if (activeBreakdown && activeBreakdown.items.length > 0) return activeBreakdown.items;
+    return DEFAULT_BREAKDOWN_ITEMS.map((item) => ({ ...item, id: uuidv4() }));
+  }, [activeBreakdown]);
+
+  const breakdownRsuAllocation = activeBreakdown?.rsuAllocationUSD || 0;
+
+  const handleBreakdownItemChange = useCallback((id: string, field: "name" | "percentage", value: string) => {
+    if (!breakdownPersonId || !breakdownYear) return;
+    const updated = breakdownItems.map((item) => {
+      if (item.id === id) {
+        if (field === "percentage") {
+          const num = parseFloat(value);
+          return { ...item, percentage: isNaN(num) ? 0 : Math.max(0, Math.min(100, num)) };
+        }
+        return { ...item, name: value };
+      }
+      return item;
+    });
+    data.setIncomeBreakdownItems(breakdownPersonId, breakdownYear, updated);
+  }, [breakdownPersonId, breakdownYear, breakdownItems, data]);
+
+  const handleAddBreakdownItem = useCallback(() => {
+    if (!breakdownPersonId || !breakdownYear) return;
+    const newItem: IncomeBreakdownItem = { id: uuidv4(), name: "New Category", percentage: 0 };
+    data.setIncomeBreakdownItems(breakdownPersonId, breakdownYear, [...breakdownItems, newItem]);
+  }, [breakdownPersonId, breakdownYear, breakdownItems, data]);
+
+  const handleRemoveBreakdownItem = useCallback((id: string) => {
+    if (!breakdownPersonId || !breakdownYear) return;
+    data.setIncomeBreakdownItems(breakdownPersonId, breakdownYear, breakdownItems.filter((item) => item.id !== id));
+  }, [breakdownPersonId, breakdownYear, breakdownItems, data]);
+
+  const handleRsuAllocationChange = useCallback((value: string) => {
+    if (!breakdownPersonId || !breakdownYear) return;
+    const num = parseFloat(value);
+    data.setIncomeBreakdownRsuAllocation(breakdownPersonId, breakdownYear, isNaN(num) ? 0 : num);
+  }, [breakdownPersonId, breakdownYear, data]);
+
+  const totalBreakdownPercent = breakdownItems.reduce((s, item) => s + item.percentage, 0);
+
+  // Pie chart data for breakdown
+  const breakdownChartData = useMemo(() => {
+    return breakdownItems
+      .filter((item) => item.percentage > 0)
+      .map((item, i) => ({
+        name: item.name,
+        value: item.percentage,
+        dollarAmount: (activePersonIncome * item.percentage) / 100,
+        color: BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length],
+      }));
+  }, [breakdownItems, activePersonIncome]);
+
   // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; color: string }>; label?: string }) => {
     if (!active || !payload) return null;
@@ -179,12 +288,14 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
         {payload.map((entry, i) => (
           <div key={i} className="flex items-center justify-between gap-4 text-sm">
             <span style={{ color: entry.color }}>{entry.name}</span>
-            <span className="font-mono">{isMasked ? "$\u2022\u2022\u2022\u2022\u2022" : formatFull(entry.value)}</span>
+            <span className="font-mono">{isMasked ? "$•••••" : formatFull(entry.value)}</span>
           </div>
         ))}
       </div>
     );
   };
+
+  const breakdownPerson = persons.find((p) => p.id === breakdownPersonId);
 
   return (
     <div className="space-y-6">
@@ -219,7 +330,7 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
                   )}
                 </div>
                 <p className="text-2xl font-bold" style={{ color: person.color }}>
-                  {isMasked ? "$\u2022\u2022\u2022\u2022\u2022" : latestEntry ? formatFull(latestEntry.amount) : "$0.00"}
+                  {isMasked ? "$•••••" : latestEntry ? formatFull(latestEntry.amount) : "$0.00"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {latestYear || "No data"}{latestYear ? ` income` : ""}
@@ -246,7 +357,7 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
                 )}
               </div>
               <p className="text-2xl font-bold text-foreground">
-                {isMasked ? "$\u2022\u2022\u2022\u2022\u2022" : formatFull(summaryStats.latestTotal)}
+                {isMasked ? "$•••••" : formatFull(summaryStats.latestTotal)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 {summaryStats.latestYear} combined income
@@ -349,7 +460,7 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                         <XAxis dataKey="year" tick={{ fontSize: 12 }} />
-                        <YAxis tickFormatter={(v) => isMasked ? "$\u2022\u2022\u2022" : formatCompact(v)} tick={{ fontSize: 11 }} width={65} />
+                        <YAxis tickFormatter={(v) => isMasked ? "$•••" : formatCompact(v)} tick={{ fontSize: 11 }} width={65} />
                         <Tooltip content={<CustomTooltip />} />
                         <Area
                           type="monotone"
@@ -384,7 +495,7 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                     <XAxis dataKey="year" tick={{ fontSize: 12 }} />
-                    <YAxis tickFormatter={(v) => isMasked ? "$\u2022\u2022\u2022" : formatCompact(v)} tick={{ fontSize: 11 }} width={70} />
+                    <YAxis tickFormatter={(v) => isMasked ? "$•••" : formatCompact(v)} tick={{ fontSize: 11 }} width={70} />
                     <Tooltip content={<CustomTooltip />} />
                     <Area
                       type="monotone"
@@ -411,7 +522,7 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
                   <BarChart data={chartData} barGap={4}>
                     <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                     <XAxis dataKey="year" tick={{ fontSize: 12 }} />
-                    <YAxis tickFormatter={(v) => isMasked ? "$\u2022\u2022\u2022" : formatCompact(v)} tick={{ fontSize: 11 }} width={70} />
+                    <YAxis tickFormatter={(v) => isMasked ? "$•••" : formatCompact(v)} tick={{ fontSize: 11 }} width={70} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend />
                     {persons.map((person) => (
@@ -431,11 +542,14 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
         </>
       )}
 
-      {/* Data Table */}
+      {/* Data Table - Editable */}
       {chartData.length > 0 && persons.length > 0 && (
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base">Income History</CardTitle>
+            <CardTitle className="text-base flex items-center justify-between">
+              <span>Income History</span>
+              <span className="text-xs font-normal text-muted-foreground">Click any amount to edit</span>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -453,6 +567,7 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
                     ))}
                     {persons.length > 1 && <TableHead className="font-bold">Combined</TableHead>}
                     <TableHead>YoY Growth</TableHead>
+                    <TableHead className="w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -473,14 +588,38 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
                         <TableCell className="font-semibold">{year}</TableCell>
                         {persons.map((p) => {
                           const entry = entries.find((e) => e.personId === p.id && e.year === year);
+                          const isEditing = editingCell?.personId === p.id && editingCell?.year === year;
+
                           return (
-                            <TableCell key={p.id} className="font-mono">
-                              {entry ? (isMasked ? "$\u2022\u2022\u2022\u2022\u2022" : formatFull(entry.amount)) : "---"}
+                            <TableCell key={p.id} className="font-mono p-1">
+                              {isEditing ? (
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={editingValue}
+                                  onChange={(e) => setEditingValue(e.target.value)}
+                                  onBlur={saveEditing}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") saveEditing();
+                                    if (e.key === "Escape") cancelEditing();
+                                  }}
+                                  className="h-8 w-36 font-mono text-sm"
+                                  autoFocus
+                                />
+                              ) : (
+                                <button
+                                  className="px-2 py-1 rounded hover:bg-muted/50 transition-colors text-left cursor-pointer w-full"
+                                  onClick={() => startEditing(p.id, year, entry?.amount || 0)}
+                                  title="Click to edit"
+                                >
+                                  {entry ? (isMasked ? "$•••••" : formatFull(entry.amount)) : "---"}
+                                </button>
+                              )}
                             </TableCell>
                           );
                         })}
                         {persons.length > 1 && (
-                          <TableCell className="font-mono font-bold">{isMasked ? "$\u2022\u2022\u2022\u2022\u2022" : formatFull(total)}</TableCell>
+                          <TableCell className="font-mono font-bold">{isMasked ? "$•••••" : formatFull(total)}</TableCell>
                         )}
                         <TableCell>
                           {yoyGrowth !== null ? (
@@ -497,11 +636,216 @@ export function IncomeHistory({ data }: IncomeHistoryProps) {
                             <span className="text-muted-foreground text-xs">---</span>
                           )}
                         </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => {
+                              setBreakdownPersonId(persons[0]?.id || null);
+                              setBreakdownYear(year);
+                            }}
+                          >
+                            Breakdown
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
                 </TableBody>
               </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Income Breakdown Section */}
+      {breakdownYear !== null && breakdownPersonId && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span>Income Breakdown — {breakdownYear}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select value={breakdownPersonId} onValueChange={(v) => v && setBreakdownPersonId(v)}>
+                  <SelectTrigger className="w-40 h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {persons.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.color }} />
+                          {p.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button variant="ghost" size="sm" className="h-8" onClick={() => { setBreakdownYear(null); setBreakdownPersonId(null); }}>
+                  ✕
+                </Button>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Breakdown Table */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Total Income: {isMasked ? "$•••••" : formatFull(activePersonIncome)}
+                  </p>
+                  <Badge
+                    variant="secondary"
+                    className={totalBreakdownPercent === 100
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"
+                      : "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
+                    }
+                  >
+                    {totalBreakdownPercent.toFixed(0)}% allocated
+                  </Badge>
+                </div>
+
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Category</TableHead>
+                      <TableHead className="w-24 text-right">%</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="w-10"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {breakdownItems.map((item, i) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="p-1">
+                          <Input
+                            value={item.name}
+                            onChange={(e) => handleBreakdownItemChange(item.id, "name", e.target.value)}
+                            className="h-8 text-sm border-0 bg-transparent hover:bg-muted/50 focus:bg-background"
+                          />
+                        </TableCell>
+                        <TableCell className="p-1 text-right">
+                          <div className="flex items-center gap-1 justify-end">
+                            <Input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max="100"
+                              value={item.percentage}
+                              onChange={(e) => handleBreakdownItemChange(item.id, "percentage", e.target.value)}
+                              className="h-8 w-20 text-sm text-right font-mono"
+                            />
+                            <span className="text-xs text-muted-foreground">%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm">
+                          {isMasked ? "$•••••" : formatFull((activePersonIncome * item.percentage) / 100)}
+                        </TableCell>
+                        <TableCell className="p-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                            onClick={() => handleRemoveBreakdownItem(item.id)}
+                          >
+                            ×
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+
+                <div className="flex items-center justify-between mt-3">
+                  <Button variant="outline" size="sm" onClick={handleAddBreakdownItem}>
+                    + Add Category
+                  </Button>
+                </div>
+
+                {/* RSU Allocation */}
+                <div className="mt-6 p-4 rounded-lg border bg-violet-500/5 border-violet-500/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm font-semibold flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
+                      RSU Allocation (USD)
+                    </Label>
+                    <Badge variant="secondary" className="bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300 text-xs">
+                      Syncs with RSU tab
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    The dollar amount of {breakdownPerson?.name || "this person"}&apos;s {breakdownYear} compensation allocated to RSUs.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-muted-foreground">$</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={breakdownRsuAllocation || ""}
+                      onChange={(e) => handleRsuAllocationChange(e.target.value)}
+                      placeholder="0.00"
+                      className="h-9 w-44 font-mono"
+                    />
+                    {breakdownRsuAllocation > 0 && activePersonIncome > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        ({((breakdownRsuAllocation / activePersonIncome) * 100).toFixed(1)}% of income)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Pie Chart */}
+              <div>
+                {breakdownChartData.length > 0 && (
+                  <div className="flex flex-col items-center">
+                    <ResponsiveContainer width="100%" height={280}>
+                      <PieChart>
+                        <Pie
+                          data={breakdownChartData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={110}
+                          paddingAngle={2}
+                          dataKey="value"
+                          label={({ name, value }) => `${name} ${value}%`}
+                          labelLine={{ strokeWidth: 1 }}
+                        >
+                          {breakdownChartData.map((entry, i) => (
+                            <Cell key={i} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value, name) => {
+                            const item = breakdownChartData.find((d) => d.name === name);
+                            return [
+                              isMasked ? "$•••••" : formatFull(item?.dollarAmount || 0),
+                              `${String(name)} (${value}%)`
+                            ];
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+
+                    {/* Legend */}
+                    <div className="flex flex-wrap gap-3 justify-center mt-2">
+                      {breakdownChartData.map((item) => (
+                        <div key={item.name} className="flex items-center gap-1.5 text-xs">
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                          <span>{item.name}</span>
+                          <span className="font-mono text-muted-foreground">
+                            {isMasked ? "$•••" : formatCompact(item.dollarAmount)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>

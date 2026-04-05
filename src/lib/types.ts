@@ -193,3 +193,18 @@ export interface IncomeHistoryEntry {
   year: number;
   amount: number;
 }
+
+// Income Breakdown Types
+export interface IncomeBreakdownItem {
+  id: string;
+  name: string; // e.g., "Base Salary", "Bonus", "RSU", "Commission"
+  percentage: number; // 0-100
+}
+
+export interface IncomeBreakdown {
+  id: string;
+  personId: string;
+  year: number;
+  items: IncomeBreakdownItem[];
+  rsuAllocationUSD: number; // RSU allocation amount in USD — syncs with RSU tab
+}
