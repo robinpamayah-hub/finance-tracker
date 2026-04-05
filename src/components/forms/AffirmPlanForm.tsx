@@ -1,11 +1,13 @@
 "use client";
 
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { affirmPlanSchema, type AffirmPlanFormValues } from "@/lib/schemas";
 import type { AffirmPlan } from "@/lib/types";
 
@@ -16,12 +18,31 @@ interface AffirmPlanFormProps {
   editItem?: AffirmPlan;
 }
 
+const defaultValues: AffirmPlanFormValues = {
+  merchant: "",
+  originalAmount: 0,
+  monthlyPayment: 0,
+  totalPayments: 12,
+  paymentsRemaining: 12,
+  dueDate: 1,
+  apr: 0,
+  startDate: "",
+  endDate: "",
+  isAutoPay: false,
+};
+
 export function AffirmPlanForm({ open, onOpenChange, onSubmit, editItem }: AffirmPlanFormProps) {
   const form = useForm<AffirmPlanFormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(affirmPlanSchema) as any,
-    defaultValues: editItem
-      ? {
+    defaultValues,
+  });
+
+  // Reset form when editItem changes or dialog opens
+  useEffect(() => {
+    if (open) {
+      if (editItem) {
+        form.reset({
           merchant: editItem.merchant,
           originalAmount: editItem.originalAmount,
           monthlyPayment: editItem.monthlyPayment,
@@ -29,21 +50,19 @@ export function AffirmPlanForm({ open, onOpenChange, onSubmit, editItem }: Affir
           paymentsRemaining: editItem.paymentsRemaining,
           dueDate: editItem.dueDate,
           apr: editItem.apr,
-        }
-      : {
-          merchant: "",
-          originalAmount: 0,
-          monthlyPayment: 0,
-          totalPayments: 12,
-          paymentsRemaining: 12,
-          dueDate: 1,
-          apr: 0,
-        },
-  });
+          startDate: editItem.startDate || "",
+          endDate: editItem.endDate || "",
+          isAutoPay: editItem.isAutoPay || false,
+        });
+      } else {
+        form.reset(defaultValues);
+      }
+    }
+  }, [open, editItem, form]);
 
   const handleSubmit = (data: AffirmPlanFormValues) => {
     onSubmit(data);
-    form.reset();
+    form.reset(defaultValues);
     onOpenChange(false);
   };
 
@@ -98,6 +117,17 @@ export function AffirmPlanForm({ open, onOpenChange, onSubmit, editItem }: Affir
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
+              <Label htmlFor="affirm-startDate">Start Date</Label>
+              <Input id="affirm-startDate" type="date" {...form.register("startDate")} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="affirm-endDate">End Date</Label>
+              <Input id="affirm-endDate" type="date" {...form.register("endDate")} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
               <Label htmlFor="affirm-apr">APR (%)</Label>
               <Input id="affirm-apr" type="number" step="0.01" placeholder="0 for interest-free" {...form.register("apr")} />
               {form.formState.errors.apr && (
@@ -111,6 +141,17 @@ export function AffirmPlanForm({ open, onOpenChange, onSubmit, editItem }: Affir
                 <p className="text-sm text-destructive">{form.formState.errors.dueDate.message}</p>
               )}
             </div>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <Label htmlFor="affirm-autopay" className="cursor-pointer">
+              Auto-Pay Enabled
+            </Label>
+            <Switch
+              id="affirm-autopay"
+              checked={form.watch("isAutoPay") || false}
+              onCheckedChange={(checked) => form.setValue("isAutoPay", checked)}
+            />
           </div>
 
           <Button type="submit" className="w-full">

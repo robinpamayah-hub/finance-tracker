@@ -23,6 +23,9 @@ export const affirmPlanSchema = z.object({
   paymentsRemaining: z.coerce.number().int().min(0, "Cannot be negative"),
   dueDate: z.coerce.number().int().min(1).max(31, "Due date must be 1-31"),
   apr: z.coerce.number().min(0).max(100, "APR must be 0-100"),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  isAutoPay: z.boolean().optional(),
 });
 
 export const billSchema = z.object({

@@ -104,22 +104,22 @@ export function SummaryCards({ summary }: SummaryCardsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5">
       {cards.map((card, i) => (
         <Card
           key={card.key}
           className={`relative overflow-hidden border-0 bg-gradient-to-br ${card.gradient} shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5`}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-muted-foreground">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-medium text-muted-foreground">
                 {card.label}
               </span>
-              <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${card.iconBg}`}>
+              <div className={`flex h-6 w-6 items-center justify-center rounded-md ${card.iconBg}`}>
                 {card.icon}
               </div>
             </div>
-            <div className={`text-2xl font-bold tracking-tight ${values[i].color}`}>
+            <div className={`text-xl font-bold tracking-tight ${values[i].color}`}>
               {values[i].display}
             </div>
             {values[i].sub && (

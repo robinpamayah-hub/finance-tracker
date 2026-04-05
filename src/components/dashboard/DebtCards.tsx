@@ -26,6 +26,15 @@ export function DebtCards({
   const totalCCBalance = creditCards.reduce((sum, c) => sum + c.balance, 0);
   const totalProjectedInterest = calcTotalInterestProjection(creditCards);
 
+  const handleMakePayment = (id: string) => {
+    const plan = affirmPlans.find((p) => p.id === id);
+    if (!plan || plan.paymentsRemaining <= 0) return;
+    onUpdateAffirmPlan(id, {
+      paymentsRemaining: plan.paymentsRemaining - 1,
+      isPaid: true,
+    });
+  };
+
   return (
     <div className="space-y-5">
       {/* Section Header */}
@@ -80,6 +89,7 @@ export function DebtCards({
                 key={plan.id}
                 plan={plan}
                 onTogglePaid={(id, isPaid) => onUpdateAffirmPlan(id, { isPaid })}
+                onMakePayment={handleMakePayment}
               />
             ))}
           </div>

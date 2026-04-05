@@ -36,14 +36,20 @@ export function CreditCardDetail({ card, onTogglePaid }: CreditCardDetailProps) 
     utilization < 30 ? "bg-emerald-500" : utilization <= 50 ? "bg-amber-500" : "bg-red-500";
 
   return (
-    <Card className="border-0 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+    <Card className={`border-0 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${
+      card.isPaid ? "ring-2 ring-emerald-500/50" : ""
+    }`}>
       <CardContent className="p-0">
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <h3 className="font-semibold text-sm">{card.name}</h3>
           <Badge
-            variant={card.isPaid ? "secondary" : "outline"}
-            className="text-[10px] rounded-full"
+            variant={card.isPaid ? "default" : "outline"}
+            className={`text-[10px] rounded-full ${
+              card.isPaid
+                ? "bg-emerald-500 text-white hover:bg-emerald-600"
+                : ""
+            }`}
           >
             {card.isPaid ? "Paid" : `Due ${card.dueDate}th`}
           </Badge>
@@ -127,7 +133,9 @@ export function CreditCardDetail({ card, onTogglePaid }: CreditCardDetailProps) 
             variant={card.isPaid ? "secondary" : "default"}
             size="sm"
             className={`w-full rounded-lg text-xs ${
-              !card.isPaid ? "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0" : ""
+              card.isPaid
+                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/30"
+                : "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0"
             }`}
             onClick={() => onTogglePaid(card.id, !card.isPaid)}
           >

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -33,24 +34,41 @@ const CATEGORIES = [
   { value: "other", label: "Other" },
 ];
 
+const defaultValues: BillFormValues = {
+  name: "",
+  amount: 0,
+  category: "other",
+  dueDate: 1,
+  isAutoPay: false,
+};
+
 export function BillForm({ open, onOpenChange, onSubmit, editItem }: BillFormProps) {
   const form = useForm<BillFormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(billSchema) as any,
-    defaultValues: editItem
-      ? {
+    defaultValues,
+  });
+
+  // Reset form when editItem changes or dialog opens
+  useEffect(() => {
+    if (open) {
+      if (editItem) {
+        form.reset({
           name: editItem.name,
           amount: editItem.amount,
           category: editItem.category,
           dueDate: editItem.dueDate,
           isAutoPay: editItem.isAutoPay,
-        }
-      : { name: "", amount: 0, category: "other", dueDate: 1, isAutoPay: false },
-  });
+        });
+      } else {
+        form.reset(defaultValues);
+      }
+    }
+  }, [open, editItem, form]);
 
   const handleSubmit = (data: BillFormValues) => {
     onSubmit(data);
-    form.reset();
+    form.reset(defaultValues);
     onOpenChange(false);
   };
 
@@ -89,8 +107,8 @@ export function BillForm({ open, onOpenChange, onSubmit, editItem }: BillFormPro
           <div className="space-y-2">
             <Label>Category</Label>
             <Select
-              defaultValue={form.getValues("category")}
-              onValueChange={(value) => form.setValue("category", value as BillFormValues["category"])}
+              value={form.watch("category")}
+              onValueChange={(value) => value && form.setValue("category", value as BillFormValues["category"])}
             >
               <SelectTrigger>
                 <SelectValue />

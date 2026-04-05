@@ -38,6 +38,9 @@ export interface AffirmPlan {
   dueDate: number; // day of month 1-31
   apr: number;
   isPaid: boolean;
+  startDate?: string; // ISO date
+  endDate?: string; // ISO date
+  isAutoPay?: boolean;
 }
 
 export interface Bill {
