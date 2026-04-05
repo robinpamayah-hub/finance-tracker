@@ -9,7 +9,12 @@
       "Bash(npx create-next-app@latest finance-tracker-temp --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm)",
       "Bash(cp -r /tmp/finance-tracker-temp/package.json /tmp/finance-tracker-temp/package-lock.json /tmp/finance-tracker-temp/postcss.config.mjs /tmp/finance-tracker-temp/tsconfig.json \"/c/Users/Robin/Fianance Tracker/\")",
       "Bash(cp -r /tmp/finance-tracker-temp/src /tmp/finance-tracker-temp/public \"/c/Users/Robin/Fianance Tracker/\")",
-      "Bash(npx shadcn@latest init -d)"
+      "Bash(npx shadcn@latest init -d)",
+      "Bash(npx shadcn@latest add card input label select dialog tabs table badge separator progress tooltip popover calendar form sheet dropdown-menu switch alert -y)",
+      "Bash(npm install:*)",
+      "Bash(npx next:*)",
+      "Bash(taskkill //F //IM node.exe)",
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }
