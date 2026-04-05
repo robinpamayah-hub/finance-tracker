@@ -1,6 +1,18 @@
 "use client";
 
 import { useState, useRef } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { useSortable } from "@dnd-kit/sortable";
+import { useDroppable } from "@dnd-kit/core";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +66,75 @@ const INSURANCE_TYPE_LABELS: Record<InsuranceType, string> = {
   other: "Other",
 };
 
+// Draggable row for manage tab insurance
+function ManageDraggableRow({
+  policy,
+  onEdit,
+  onMove,
+  onDelete,
+  showMove,
+}: {
+  policy: InsurancePolicy;
+  onEdit: () => void;
+  onMove: () => void;
+  onDelete: () => void;
+  showMove: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: policy.id,
+    data: { type: "policy", policy },
+  });
+  const style: React.CSSProperties = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+  return (
+    <TableRow ref={setNodeRef} style={style}>
+      <TableCell className="font-medium cursor-grab active:cursor-grabbing" {...attributes} {...listeners}>
+        <span className="text-muted-foreground mr-2 select-none">&#x2630;</span>
+        {policy.name}
+      </TableCell>
+      <TableCell><Badge variant="secondary">{INSURANCE_TYPE_LABELS[policy.type]}</Badge></TableCell>
+      <TableCell>{policy.provider}</TableCell>
+      <TableCell>
+        {formatCurrencyExact(policy.premium)}/{policy.premiumFrequency === "annual" ? "yr" : policy.premiumFrequency === "monthly" ? "mo" : policy.premiumFrequency}
+      </TableCell>
+      <TableCell>{policy.coverageAmount > 0 ? formatCurrencyExact(policy.coverageAmount) : "\u2014"}</TableCell>
+      <TableCell>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>
+          {showMove && <Button variant="ghost" size="sm" onClick={onMove}>Move</Button>}
+          <Button variant="ghost" size="sm" className="text-destructive" onClick={onDelete}>Del</Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+// Droppable category wrapper for manage tab
+function ManageDroppableCategory({
+  category,
+  isOver,
+  children,
+}: {
+  category: string;
+  isOver: boolean;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef } = useDroppable({ id: `manage-cat-${category}`, data: { type: "category", category } });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`rounded-lg p-3 transition-all duration-200 ${
+        isOver ? "ring-2 ring-blue-500 bg-blue-50/50 dark:bg-blue-950/20" : ""
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
 interface DataManagerProps {
   data: FinanceData;
 }
@@ -81,6 +162,13 @@ export function DataManager({ data }: DataManagerProps) {
   const [deleteCategoryDialog, setDeleteCategoryDialog] = useState<string | null>(null);
   const [movePolicyDialog, setMovePolicyDialog] = useState<{ policyId: string; currentCategory: string } | null>(null);
   const [movePolicyTarget, setMovePolicyTarget] = useState("");
+
+  // Drag and drop for insurance
+  const [activeDragPolicy, setActiveDragPolicy] = useState<InsurancePolicy | null>(null);
+  const [overDropCategory, setOverDropCategory] = useState<string | null>(null);
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
 
   // Insurance form state
   const [insuranceForm, setInsuranceForm] = useState({
@@ -238,6 +326,45 @@ export function DataManager({ data }: DataManagerProps) {
     data.moveInsurancePolicy(movePolicyDialog.policyId, movePolicyTarget);
     setMovePolicyDialog(null);
     setMovePolicyTarget("");
+  };
+
+  // Drag handlers for insurance
+  const handleInsDragStart = (event: DragStartEvent) => {
+    const policy = event.active.data.current?.policy as InsurancePolicy | undefined;
+    if (policy) setActiveDragPolicy(policy);
+  };
+
+  const handleInsDragOver = (event: DragEndEvent) => {
+    const over = event.over;
+    if (over?.data.current?.type === "category") {
+      setOverDropCategory(over.data.current.category as string);
+    } else if (over?.data.current?.type === "policy") {
+      const targetPolicy = over.data.current.policy as InsurancePolicy;
+      setOverDropCategory(targetPolicy.category);
+    } else {
+      setOverDropCategory(null);
+    }
+  };
+
+  const handleInsDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragPolicy(null);
+    setOverDropCategory(null);
+
+    if (!over || !active.data.current?.policy) return;
+
+    const draggedPolicy = active.data.current.policy as InsurancePolicy;
+    let targetCategory: string | null = null;
+
+    if (over.data.current?.type === "category") {
+      targetCategory = over.data.current.category as string;
+    } else if (over.data.current?.type === "policy") {
+      targetCategory = (over.data.current.policy as InsurancePolicy).category;
+    }
+
+    if (targetCategory && targetCategory !== draggedPolicy.category) {
+      data.moveInsurancePolicy(draggedPolicy.id, targetCategory);
+    }
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -623,74 +750,69 @@ export function DataManager({ data }: DataManagerProps) {
             </div>
           )}
 
+          <p className="text-xs text-muted-foreground text-center">
+            Drag policies by the &#x2630; handle to move between categories, or use the Move button.
+          </p>
+
           {data.insurancePolicies.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">
               No insurance policies added yet.
             </p>
           ) : (
-            <>
+            <DndContext
+              sensors={dndSensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleInsDragStart}
+              onDragOver={handleInsDragOver}
+              onDragEnd={handleInsDragEnd}
+              onDragCancel={() => { setActiveDragPolicy(null); setOverDropCategory(null); }}
+            >
               {/* Group policies by category */}
               {data.insuranceCategories.map((category) => {
                 const policies = data.insurancePolicies.filter((p) => p.category === category);
-                if (policies.length === 0) return null;
+                const isOver = overDropCategory === category && activeDragPolicy?.category !== category;
                 return (
-                  <div key={category}>
-                    <h4 className="text-sm font-semibold mb-2">{category} ({policies.length})</h4>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Provider</TableHead>
-                          <TableHead>Premium</TableHead>
-                          <TableHead>Coverage</TableHead>
-                          <TableHead className="w-[150px]">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {policies.map((policy) => (
-                          <TableRow key={policy.id}>
-                            <TableCell className="font-medium">{policy.name}</TableCell>
-                            <TableCell>
-                              <Badge variant="secondary">{INSURANCE_TYPE_LABELS[policy.type]}</Badge>
-                            </TableCell>
-                            <TableCell>{policy.provider}</TableCell>
-                            <TableCell>
-                              {formatCurrencyExact(policy.premium)}/{policy.premiumFrequency === "annual" ? "yr" : policy.premiumFrequency === "monthly" ? "mo" : policy.premiumFrequency}
-                            </TableCell>
-                            <TableCell>{policy.coverageAmount > 0 ? formatCurrencyExact(policy.coverageAmount) : "—"}</TableCell>
-                            <TableCell>
-                              <div className="flex gap-1">
-                                <Button variant="ghost" size="sm" onClick={() => openInsuranceForm(policy)}>
-                                  Edit
-                                </Button>
-                                {data.insuranceCategories.length > 1 && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      setMovePolicyDialog({ policyId: policy.id, currentCategory: policy.category });
-                                      setMovePolicyTarget(data.insuranceCategories.find((c) => c !== policy.category) || "");
-                                    }}
-                                  >
-                                    Move
-                                  </Button>
-                                )}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-destructive"
-                                  onClick={() => setDeleteDialog({ type: "insurance", id: policy.id, name: policy.name })}
-                                >
-                                  Del
-                                </Button>
-                              </div>
-                            </TableCell>
+                  <ManageDroppableCategory
+                    key={category}
+                    category={category}
+                    isOver={isOver}
+                  >
+                    <h4 className="text-sm font-semibold mb-2">
+                      {category} ({policies.length})
+                      {isOver && <Badge className="ml-2 bg-blue-500 text-white animate-pulse">Drop here</Badge>}
+                    </h4>
+                    {policies.length === 0 && !isOver ? (
+                      <p className="py-2 text-center text-xs text-muted-foreground">No policies in this category. Drag one here.</p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Provider</TableHead>
+                            <TableHead>Premium</TableHead>
+                            <TableHead>Coverage</TableHead>
+                            <TableHead className="w-[150px]">Actions</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                        </TableHeader>
+                        <TableBody>
+                          {policies.map((policy) => (
+                            <ManageDraggableRow
+                              key={policy.id}
+                              policy={policy}
+                              onEdit={() => openInsuranceForm(policy)}
+                              onMove={() => {
+                                setMovePolicyDialog({ policyId: policy.id, currentCategory: policy.category });
+                                setMovePolicyTarget(data.insuranceCategories.find((c) => c !== policy.category) || "");
+                              }}
+                              onDelete={() => setDeleteDialog({ type: "insurance", id: policy.id, name: policy.name })}
+                              showMove={data.insuranceCategories.length > 1}
+                            />
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </ManageDroppableCategory>
                 );
               })}
 
@@ -716,49 +838,39 @@ export function DataManager({ data }: DataManagerProps) {
                       </TableHeader>
                       <TableBody>
                         {uncategorized.map((policy) => (
-                          <TableRow key={policy.id}>
-                            <TableCell className="font-medium">{policy.name}</TableCell>
-                            <TableCell>
-                              <Badge variant="secondary">{INSURANCE_TYPE_LABELS[policy.type]}</Badge>
-                            </TableCell>
-                            <TableCell>{policy.provider}</TableCell>
-                            <TableCell>
-                              {formatCurrencyExact(policy.premium)}/{policy.premiumFrequency === "annual" ? "yr" : policy.premiumFrequency === "monthly" ? "mo" : policy.premiumFrequency}
-                            </TableCell>
-                            <TableCell>{policy.coverageAmount > 0 ? formatCurrencyExact(policy.coverageAmount) : "—"}</TableCell>
-                            <TableCell>
-                              <div className="flex gap-1">
-                                <Button variant="ghost" size="sm" onClick={() => openInsuranceForm(policy)}>
-                                  Edit
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setMovePolicyDialog({ policyId: policy.id, currentCategory: policy.category });
-                                    setMovePolicyTarget(data.insuranceCategories[0] || "");
-                                  }}
-                                >
-                                  Move
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-destructive"
-                                  onClick={() => setDeleteDialog({ type: "insurance", id: policy.id, name: policy.name })}
-                                >
-                                  Del
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
+                          <ManageDraggableRow
+                            key={policy.id}
+                            policy={policy}
+                            onEdit={() => openInsuranceForm(policy)}
+                            onMove={() => {
+                              setMovePolicyDialog({ policyId: policy.id, currentCategory: policy.category });
+                              setMovePolicyTarget(data.insuranceCategories[0] || "");
+                            }}
+                            onDelete={() => setDeleteDialog({ type: "insurance", id: policy.id, name: policy.name })}
+                            showMove={true}
+                          />
                         ))}
                       </TableBody>
                     </Table>
                   </div>
                 );
               })()}
-            </>
+
+              {/* Drag overlay */}
+              <DragOverlay>
+                {activeDragPolicy ? (
+                  <div className="bg-background border rounded-lg shadow-lg p-3 flex items-center gap-3 max-w-md">
+                    <span className="text-muted-foreground">&#x2630;</span>
+                    <div>
+                      <p className="font-medium text-sm">{activeDragPolicy.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {INSURANCE_TYPE_LABELS[activeDragPolicy.type]} &bull; {activeDragPolicy.provider}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
           )}
         </CardContent>
       </Card>
