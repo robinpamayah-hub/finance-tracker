@@ -18,7 +18,19 @@
       "Bash(npx vercel:*)",
       "Bash(gh auth:*)",
       "Bash(gh repo:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(curl -sL -w nHTTP_CODE:%{http_code} https://api.codetabs.com/v1/proxy/?quest=https://query1.finance.yahoo.com/v8/finance/chart/MSFT%3Finterval%3D1d%26range%3D5d)",
+      "Bash(netstat -ano)",
+      "Bash(findstr :3005)",
+      "Bash(npx shadcn@latest add button card input label select tabs table badge separator progress tooltip popover dropdown-menu switch alert dialog calendar sheet avatar textarea checkbox scroll-area --yes)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/login)",
+      "Bash(curl -s http://localhost:3001/)",
+      "Bash(grep -E 300[0-9])",
+      "Bash(curl -s http://localhost:3009/login)",
+      "Bash(curl -s http://localhost:3009/admin)",
+      "Bash(curl -s http://localhost:3009/portal)",
+      "Bash(curl -s http://localhost:3009/admin/players)",
+      "Bash(gh pr:*)"
     ]
   }
 }
