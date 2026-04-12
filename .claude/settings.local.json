@@ -30,7 +30,9 @@
       "Bash(curl -s http://localhost:3009/admin)",
       "Bash(curl -s http://localhost:3009/portal)",
       "Bash(curl -s http://localhost:3009/admin/players)",
-      "Bash(gh pr:*)"
+      "Bash(gh pr:*)",
+      "WebSearch",
+      "Read(//c/Users/Robin/Anderson Futbol Lab/**)"
     ]
   }
 }
